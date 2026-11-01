@@ -177,6 +177,10 @@ inverter:
   image: /local/energy-card/goodwe-gw20k-et.png
 ```
 
+Am besten passen Bilder, die wie die Szene von schräg oben aufgenommen sind (Front nach
+links unten, rechte Seite und Oberseite sichtbar). Solche Bilder lassen sich mit einer Bild-KI
+aus den Herstellerfotos erstellen, genauso wie beim Auto.
+
 Mit einem eigenen Wechselrichter-Bild nimmt die Karte automatisch einen Hintergrund
 ohne den Glas-Kasten, und die Leitungen enden am neuen Bild.
 Position und Größe: `layout.inverter` und `layout.battery_image`.
@@ -195,14 +199,14 @@ Jeder Wert aus `LAYOUT` im Code lässt sich überschreiben:
 
 ```yaml
 layout:
-  car: { x: 2360, y: 880, width: 660, height: 410 }
-  inverter: { x: 1615, y: 1000, width: 300, height: 400 }   # nur mit inverter.image
+  car: { x: 2290, y: 850, width: 760, height: 470 }
+  inverter: { x: 1650, y: 1100, width: 230, height: 300 }   # nur mit inverter.image
   battery: { x: 937, y: 1075, width: 307 }
-  battery_image: { x: 950, y: 822, width: 280, height: 600 } # nur mit battery.image
+  battery_image: { x: 960, y: 862, width: 280, height: 560 } # nur mit battery.image
   boxes:
     car: [2811, 768]
   flows:
-    car: [[1853, 1374], [2142, 1484], [2480, 1330]]          # das Ladekabel beginnt am letzten Punkt
+    car: [[1853, 1374], [2126, 1477], [2420, 1345]]          # das Ladekabel beginnt am letzten Punkt
 ```
 
 Die Flüsse sind Linienzüge aus beliebig vielen Punkten. Damit sie auf dem Boden liegen,

@@ -7,7 +7,7 @@
  * see NOTICE-ASSETS.md.
  */
 
-const VERSION = "0.4.2";
+const VERSION = "0.4.3";
 const TAG = "energy-card";
 const ASSETS = new URL("./", import.meta.url).href;
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -22,7 +22,7 @@ const LAYOUT = {
     battery: [[1200, 1405], [1342, 1470], [1617, 1370]],
     home: [[1843, 1197], [2173, 1070], [1824, 950]],
     grid: [[2534, 1702], [1785, 1414]],
-    car: [[1853, 1374], [2142, 1484], [2480, 1330]], // ends on the floor in front of the car, the charging cable starts here
+    car: [[1853, 1374], [2126, 1477], [2420, 1345]], // ends on the floor in front of the car, the charging cable starts here
   },
   boxes: {
     pv: [461, 645],
@@ -38,20 +38,20 @@ const LAYOUT = {
     wallbox: [2289, 561, 253, 445],
   },
   battery: { x: 937, y: 1075, width: 307 },
-  battery_image: { x: 950, y: 822, width: 280, height: 600 }, // only used with battery.image; tall stacks grow upwards
-  car: { x: 2360, y: 880, width: 660, height: 410 }, // visible part of the picture, wheels on the bottom edge
-  inverter: { x: 1615, y: 1000, width: 300, height: 400 }, // only used with inverter.image
+  battery_image: { x: 960, y: 862, width: 280, height: 560 }, // only used with battery.image; tall stacks grow upwards
+  car: { x: 2290, y: 850, width: 760, height: 470 }, // visible part of the picture, wheels on the bottom edge
+  inverter: { x: 1650, y: 1100, width: 230, height: 300 }, // only used with inverter.image
   grid_node: [2534, 1702],
 };
 
 // With an own inverter picture the card uses a background without the glass box,
 // and the flows end at the edges of the picture instead.
 const INVERTER_IMAGE_FLOWS = {
-  pv: [[960, 1045], [1660, 1312]],
-  battery: [[1200, 1405], [1380, 1477], [1650, 1380]],
-  home: [[1880, 1100], [2072, 1027], [1824, 950]],
-  grid: [[2534, 1702], [1760, 1395]],
-  car: [[1918, 1340], [2217, 1449], [2480, 1330]],
+  pv: [[960, 1045], [1700, 1325]],
+  battery: [[1200, 1415], [1335, 1477], [1705, 1342]],
+  home: [[1840, 1160], [2178, 1049], [1824, 950]],
+  grid: [[2534, 1702], [1795, 1385]],
+  car: [[1871, 1365], [2146, 1468], [2420, 1345]], // starts right next to the inverter, it is drawn above it
 };
 
 // Where the SOC segments sit on the battery image (fractions of its width/height).
