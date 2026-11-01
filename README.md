@@ -61,11 +61,11 @@ Ohne `home.entity` berechnet die Karte den Hausverbrauch aus PV, Netz und Batter
 | Bereich | Optionen |
 |---|---|
 | `pv` | `entity`, `daily` (Tagesertrag), `name`, `popup` |
-| `battery` | `soc`, `power`, `invert`, `name`, `popup`, `image`, `soc_bar` (`false` = aus), `soc_face` |
+| `battery` | `soc`, `power`, `invert`, `name`, `popup`, `image`, `trim`, `soc_bar` (`false` = aus), `soc_face` |
 | `home` | `entity`, `name`, `popup` |
 | `grid` | `entity`, `invert`, `daily_import`, `daily_export`, `name`, `popup` |
-| `car` | `power`, `soc`, `status`, `name`, `image_entity`, `image`, `flip`, `hologram`, `reflection`, `invert`, `popup` |
-| `inverter` | `image`, `flip`, `reflection`, `entity`, `popup` |
+| `car` | `power`, `soc`, `status`, `name`, `image_entity`, `image`, `flip`, `trim`, `hologram`, `reflection`, `invert`, `popup` |
+| `inverter` | `image`, `flip`, `trim`, `reflection`, `entity`, `popup` |
 
 `popup` ist eine Liste von Entities, die beim Antippen eines Elements erscheinen:
 
@@ -121,6 +121,10 @@ car:
   flip: true        # falls das Auto in die falsche Richtung schaut
 ```
 
+Durchsichtige Ränder im Bild schneidet die Karte automatisch ab. Das Auto füllt
+dann genau die Fläche `layout.car`, mit den Rädern auf der Unterkante.
+Mit `trim: false` lässt sich das abschalten.
+
 ### Batterie und Wechselrichter (z. B. GoodWe Lynx und GoodWe ET)
 
 1. Ein Foto suchen, am besten schräg von vorne links.
@@ -147,7 +151,7 @@ Jeder Wert aus `LAYOUT` im Code lässt sich überschreiben:
 
 ```yaml
 layout:
-  car: { x: 2330, y: 870, width: 720, height: 420 }
+  car: { x: 2360, y: 880, width: 660, height: 410 }
   inverter: { x: 1515, y: 830, width: 520, height: 590 }
   battery: { x: 937, y: 1075, width: 307 }
   boxes:

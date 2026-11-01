@@ -24,6 +24,8 @@
       <label>Breite <select id="width"><option value="100%">voll</option><option value="760px">760 px</option><option value="390px">390 px (Handy)</option></select></label>
       <label><span>Raster</span><input type="checkbox" id="grid"></label>
       <label><span>Auto-Bild</span><input type="checkbox" id="carimg" checked></label>
+      <label><span>Auto spiegeln</span><input type="checkbox" id="flip"></label>
+      <label><span>Bild mit Rand</span><input type="checkbox" id="padded" checked></label>
     </div>
     <div class="ctl" id="ctl"></div>
     <div id="log"></div>
@@ -142,6 +144,9 @@
       cfg.display.animation = document.getElementById("anim").value;
       cfg.style = document.getElementById("style").value;
       if (!document.getElementById("carimg").checked) delete cfg.car.image_entity;
+      cfg.car.flip = document.getElementById("flip").checked;
+      const pic = document.getElementById("padded").checked ? "./mock/car-padded.png" : "./mock/car.png";
+      set("image.skoda_superb_combi_hauptansicht_des_fahrzeugs", pic, { entity_picture: pic });
       card.setConfig(cfg);
       card.hass = makeHass();
       drawGrid();
@@ -180,7 +185,7 @@
       svgEl.appendChild(g);
     }
 
-    for (const id of ["anim", "style", "grid", "carimg"]) document.getElementById(id).addEventListener("change", apply);
+    for (const id of ["anim", "style", "grid", "carimg", "flip", "padded"]) document.getElementById(id).addEventListener("change", apply);
     document.getElementById("width").addEventListener("change", (e) => (document.getElementById("host").style.width = e.target.value));
     apply();
     window.card = card;

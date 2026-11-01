@@ -7,7 +7,7 @@
  * see NOTICE-ASSETS.md.
  */
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const TAG = "energy-card";
 const ASSETS = new URL("./", import.meta.url).href;
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -37,7 +37,7 @@ const LAYOUT = {
     wallbox: [2289, 561, 253, 445],
   },
   battery: { x: 937, y: 1075, width: 307 },
-  car: { x: 2330, y: 870, width: 720, height: 420 },
+  car: { x: 2360, y: 880, width: 660, height: 410 }, // visible part of the picture, wheels on the bottom edge
   inverter: { x: 1515, y: 830, width: 520, height: 590 }, // only used with inverter.image
   grid_node: [2534, 1702],
 };
@@ -512,7 +512,7 @@ class EnergyCard extends HTMLElement {
     const attrs = { x, y, width: w, height: h, preserveAspectRatio: "xMidYMax meet" };
     const refl = svg("image", { ...attrs, transform: `translate(0 ${2 * (y + h)}) scale(1 -1)` }, mirror);
     const img = svg("image", attrs, g);
-    return { g, img, refl, href: null };
+    return { g, img, refl, href: null, box: { x, y, width: w, height: h }, trim: opts.trim !== false, fitToken: 0 };
   }
 
   _setHref(overlay, url) {
@@ -520,6 +520,65 @@ class EnergyCard extends HTMLElement {
     for (const el of [overlay.img, overlay.refl]) {
       if (url) el.setAttribute("href", url);
       else el.removeAttribute("href");
+    }
+    if (url && overlay.trim) this._fitContent(overlay, url);
+  }
+
+  // Many pictures (e.g. MySkoda renders) have a wide transparent border.
+  // Measure the visible part and scale it so exactly that part fills the box,
+  // standing on the box bottom. Falls back to the plain fit for cross-origin images.
+  async _fitContent(overlay, url) {
+    const token = ++overlay.fitToken;
+    try {
+      const pic = new Image();
+      pic.src = url;
+      await pic.decode();
+      if (token !== overlay.fitToken) return;
+      const nw = pic.naturalWidth;
+      const nh = pic.naturalHeight;
+      if (!nw || !nh) return;
+      const s = Math.min(1, 480 / Math.max(nw, nh));
+      const cw = Math.max(1, Math.round(nw * s));
+      const ch = Math.max(1, Math.round(nh * s));
+      const canvas = document.createElement("canvas");
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(pic, 0, 0, cw, ch);
+      const data = ctx.getImageData(0, 0, cw, ch).data; // throws for cross-origin pictures
+      let x0 = cw;
+      let y0 = ch;
+      let x1 = -1;
+      let y1 = -1;
+      for (let py = 0; py < ch; py++) {
+        for (let px = 0; px < cw; px++) {
+          if (data[(py * cw + px) * 4 + 3] > 24) {
+            if (px < x0) x0 = px;
+            if (px > x1) x1 = px;
+            if (py < y0) y0 = py;
+            if (py > y1) y1 = py;
+          }
+        }
+      }
+      if (x1 < 0) return;
+      const bx = x0 / s;
+      const by = y0 / s;
+      const bw = (x1 - x0 + 1) / s;
+      const bh = (y1 - y0 + 1) / s;
+      const { x, y, width: W, height: H } = overlay.box;
+      const k = Math.min(W / bw, H / bh);
+      const attrs = {
+        x: (x + (W - bw * k) / 2 - bx * k).toFixed(1),
+        y: (y + H - bh * k - by * k).toFixed(1),
+        width: (nw * k).toFixed(1),
+        height: (nh * k).toFixed(1),
+        preserveAspectRatio: "none",
+      };
+      for (const el of [overlay.img, overlay.refl]) {
+        for (const [name, value] of Object.entries(attrs)) el.setAttribute(name, value);
+      }
+    } catch (e) {
+      // keep the plain fit
     }
   }
 
