@@ -7,7 +7,7 @@
  * see NOTICE-ASSETS.md.
  */
 
-const VERSION = "0.4.1";
+const VERSION = "0.4.2";
 const TAG = "energy-card";
 const ASSETS = new URL("./", import.meta.url).href;
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -585,33 +585,114 @@ class EnergyCard extends HTMLElement {
   _buildOverlay(layer, key, box, opts = {}) {
     const { x, y, width: w, height: h } = box;
     const id = `${this._uid}-${key}`;
-    const rh = h * 0.6;
-    this._defs.insertAdjacentHTML("beforeend", `
-      <linearGradient id="${id}-rg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#fff" stop-opacity=".85"></stop>
-        <stop offset="1" stop-color="#fff" stop-opacity="0"></stop>
-      </linearGradient>
-      <mask id="${id}-rm" maskUnits="userSpaceOnUse" x="${x}" y="${y + h}" width="${w}" height="${rh}">
-        <rect x="${x}" y="${y + h}" width="${w}" height="${rh}" fill="url(#${id}-rg)"></rect>
-      </mask>`);
     const g = svg("g", { class: key }, layer);
     if (opts.flip) g.setAttribute("transform", `translate(${2 * x + w} 0) scale(-1 1)`);
     if (opts.hologram) g.setAttribute("filter", `url(#${this._uid}-holo)`);
-    const mirror = svg("g", { mask: `url(#${id}-rm)`, opacity: opts.reflection === false ? 0 : 0.35 }, g);
+    // The reflection is mirrored at the line where the picture touches the floor. Seen from above,
+    // a car touches it along two lines (bumper and tires), so there is a left and a right half.
+    const mirror = svg("g", { opacity: opts.reflection === false ? 0 : 0.35 }, g);
     const attrs = { x, y, width: w, height: h, preserveAspectRatio: "xMidYMax meet" };
-    const refl = svg("image", { ...attrs, transform: `translate(0 ${2 * (y + h)}) scale(1 -1)` }, mirror);
+    const parts = [0, 1].map((n) => {
+      this._defs.insertAdjacentHTML("beforeend", `
+        <clipPath id="${id}-c${n}"><rect></rect></clipPath>
+        <linearGradient id="${id}-g${n}" gradientUnits="userSpaceOnUse" x1="0" x2="0">
+          <stop offset="0" stop-color="#fff" stop-opacity="0"></stop>
+          <stop offset="1" stop-color="#fff" stop-opacity=".85"></stop>
+        </linearGradient>
+        <mask id="${id}-m${n}" maskUnits="userSpaceOnUse"><rect fill="url(#${id}-g${n})"></rect></mask>`);
+      const clip = svg("g", { "clip-path": `url(#${id}-c${n})` }, mirror);
+      const flipped = svg("g", { mask: `url(#${id}-m${n})` }, clip);
+      return {
+        g: flipped,
+        image: svg("image", attrs, flipped),
+        clipRect: this._defs.querySelector(`#${id}-c${n} rect`),
+        grad: this._defs.querySelector(`#${id}-g${n}`),
+        mask: this._defs.querySelector(`#${id}-m${n}`),
+      };
+    });
     const img = svg("image", attrs, g);
-    return {
-      g, img, refl, href: null, box: { x, y, width: w, height: h }, flip: !!opts.flip,
-      trim: opts.trim !== false, fitToken: 0, mask: this._defs.querySelector(`#${id}-rm`),
+    const overlay = {
+      g, img, refl: parts.map((p) => p.image), parts, href: null, box: { x, y, width: w, height: h },
+      flip: !!opts.flip, trim: opts.trim !== false, fitToken: 0,
       content: null, // visible part of the picture once measured, before flipping
       onFit: null,
     };
+    this._placeReflection(overlay, null);
+    return overlay;
+  }
+
+  // Mirrors the picture at its floor line(s). floor: { lines: [[slope, x, y], [slope, x, y]], split }
+  // for the left and right half, or null for a flat floor at the bottom of the picture.
+  _placeReflection(o, floor) {
+    const b = o.content || o.box;
+    const bottom = b.y + b.height;
+    const lines = floor ? floor.lines : [[0, b.x, bottom], [0, b.x, bottom]];
+    const split = floor ? floor.split : b.x + b.width / 2;
+    const fade = Math.max(20, b.height * 0.6);
+    const X0 = o.box.x - 200;
+    const X1 = o.box.x + o.box.width + 200;
+    const Y0 = o.box.y - 800;
+    const Y1 = o.box.y + o.box.height + 800;
+    const area = (el, x0, x1) => {
+      el.setAttribute("x", x0.toFixed(1));
+      el.setAttribute("y", Y0.toFixed(1));
+      el.setAttribute("width", (x1 - x0).toFixed(1));
+      el.setAttribute("height", (Y1 - Y0).toFixed(1));
+    };
+    o.parts.forEach((p, n) => {
+      const [k, lx, ly] = lines[n];
+      const c = ly - k * lx; // floor line: y = c + k * x
+      // mirror at that line, and fade out with the distance above it
+      p.g.setAttribute("transform", `matrix(1 ${(2 * k).toFixed(4)} 0 -1 0 ${(2 * c).toFixed(1)})`);
+      p.grad.setAttribute("gradientTransform", `matrix(1 ${k.toFixed(4)} 0 1 0 0)`);
+      p.grad.setAttribute("y1", (c - fade).toFixed(1));
+      p.grad.setAttribute("y2", c.toFixed(1));
+      area(p.mask, X0, X1);
+      area(p.mask.firstElementChild, X0, X1);
+      area(p.clipRect, n === 0 ? X0 : split, n === 0 ? split : X1);
+    });
+  }
+
+  // Where a picture touches the floor: the lower convex hull of its bottom outline (points sorted
+  // by x, y downwards). Left and right of the lowest point the longest hull edge is the floor line.
+  _floorLines(pts) {
+    if (pts.length < 3) return null;
+    const hull = [];
+    for (const p of pts) {
+      while (hull.length >= 2) {
+        const a = hull[hull.length - 2];
+        const b = hull[hull.length - 1];
+        if ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) >= 0) hull.pop();
+        else break;
+      }
+      hull.push(p);
+    }
+    let low = 0;
+    hull.forEach((p, i) => {
+      if (p[1] > hull[low][1]) low = i;
+    });
+    const longest = (from, to) => {
+      let best = null;
+      for (let i = from; i < to; i++) {
+        const dx = hull[i + 1][0] - hull[i][0];
+        if (dx > 0 && (!best || dx > best.dx)) best = { dx, k: (hull[i + 1][1] - hull[i][1]) / dx, p: hull[i] };
+      }
+      return best && Math.abs(best.k) <= 0.7 ? [best.k, best.p[0], best.p[1]] : [0, hull[low][0], hull[low][1]];
+    };
+    const left = longest(0, low);
+    const right = longest(low, hull.length - 1);
+    // the halves meet where both lines cross, normally below the front wheel
+    let split = hull[low][0];
+    if (Math.abs(left[0] - right[0]) > 0.01) {
+      const x = (right[2] - left[2] + left[0] * left[1] - right[0] * right[1]) / (left[0] - right[0]);
+      if (x > pts[0][0] && x < pts[pts.length - 1][0]) split = x;
+    }
+    return { lines: [left, right], split };
   }
 
   _setHref(overlay, url) {
     overlay.href = url;
-    for (const el of [overlay.img, overlay.refl]) {
+    for (const el of [overlay.img, ...overlay.refl]) {
       if (url) el.setAttribute("href", url);
       else el.removeAttribute("href");
     }
@@ -644,9 +725,10 @@ class EnergyCard extends HTMLElement {
     const { x, y, width: W, height: H } = overlay.box;
     let k = Math.min(W / nw, H / nh);
     let content = { x: x + (W - nw * k) / 2, y: y + H - nh * k, width: nw * k, height: nh * k };
-    const vis = overlay.trim ? this._visibleBox(pic, nw, nh) : null;
-    if (vis) {
-      const [bx, by, bw, bh] = vis;
+    const vis = this._visibleBox(pic, nw, nh);
+    let floor = null;
+    if (vis && overlay.trim) {
+      const [bx, by, bw, bh] = vis.box;
       k = Math.min(W / bw, H / bh);
       content = { x: x + (W - bw * k) / 2, y: y + H - bh * k, width: bw * k, height: bh * k };
       const attrs = {
@@ -656,19 +738,22 @@ class EnergyCard extends HTMLElement {
         height: (nh * k).toFixed(1),
         preserveAspectRatio: "none",
       };
-      for (const el of [overlay.img, overlay.refl]) {
+      for (const el of [overlay.img, ...overlay.refl]) {
         for (const [name, value] of Object.entries(attrs)) el.setAttribute(name, value);
       }
+      floor = this._floorLines(vis.bottom.map(([px, py]) => [content.x + (px - bx) * k, content.y + (py - by) * k]));
+    } else if (vis) {
+      // plain fit: picture pixels map straight onto the fitted picture
+      floor = this._floorLines(vis.bottom.map(([px, py]) => [content.x + px * k, content.y + py * k]));
     }
     overlay.content = content;
-    // let the reflection fade out over the height of the picture, not of the box
-    const rh = Math.max(20, content.height * 0.6).toFixed(1);
-    overlay.mask?.setAttribute("height", rh);
-    overlay.mask?.firstElementChild?.setAttribute("height", rh);
+    this._placeReflection(overlay, floor);
     overlay.onFit?.();
   }
 
-  // Bounding box [x, y, width, height] of the non-transparent pixels, or null if unknown.
+  // Visible part of the picture, or null if its pixels can't be read (cross-origin):
+  // box = [x, y, width, height] of the non-transparent pixels,
+  // bottom = lowest non-transparent point of each column, [x, y] in picture pixels.
   _visibleBox(pic, nw, nh) {
     try {
       const s = Math.min(1, 480 / Math.max(nw, nh));
@@ -684,6 +769,7 @@ class EnergyCard extends HTMLElement {
       let y0 = ch;
       let x1 = -1;
       let y1 = -1;
+      const low = new Array(cw).fill(-1);
       for (let py = 0; py < ch; py++) {
         for (let px = 0; px < cw; px++) {
           if (data[(py * cw + px) * 4 + 3] > 24) {
@@ -691,11 +777,14 @@ class EnergyCard extends HTMLElement {
             if (px > x1) x1 = px;
             if (py < y0) y0 = py;
             if (py > y1) y1 = py;
+            low[px] = py;
           }
         }
       }
       if (x1 < 0) return null;
-      return [x0 / s, y0 / s, (x1 - x0 + 1) / s, (y1 - y0 + 1) / s];
+      const bottom = [];
+      for (let px = x0; px <= x1; px++) if (low[px] >= 0) bottom.push([(px + 0.5) / s, (low[px] + 1) / s]);
+      return { box: [x0 / s, y0 / s, (x1 - x0 + 1) / s, (y1 - y0 + 1) / s], bottom };
     } catch (e) {
       return null;
     }

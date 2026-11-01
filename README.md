@@ -127,6 +127,24 @@ Durchsichtige Ränder im Bild schneidet die Karte automatisch ab. Das Auto füll
 dann genau die Fläche `layout.car`, mit den Rädern auf der Unterkante.
 Mit `trim: false` lässt sich das abschalten.
 
+Die Spiegelung auf dem Boden richtet sich nach der Unterkante des Bildes: Die Karte sucht die
+Linien, auf denen das Auto steht (vorne die Stoßstange, seitlich die Reifen), und spiegelt jede
+Hälfte an ihrer Linie. So berühren sich Reifen und Spiegelbild auch bei Bildern von schräg oben.
+
+### Auto von oben (eigenes Bild)
+
+Die Bilder aus MySkoda und ähnlichen Apps sind auf Augenhöhe aufgenommen, die Szene aber von
+schräg oben. Besser passt ein eigenes Bild, z. B. von einer Bild-KI erstellt: das Auto aus der
+App als Vorlage, Blick etwa 30° von oben, die Front zeigt nach links unten, Front und rechte
+Seite sind zu sehen, durchsichtiger Hintergrund ohne Boden, Schatten und Spiegelung.
+Das Bild nach `/config/www/energy-card/` legen und statt `image_entity` angeben:
+
+```yaml
+car:
+  image: /local/energy-card/superb.png
+  charge_port: [0.205, 0.71]
+```
+
 ### Ladekabel
 
 ```yaml

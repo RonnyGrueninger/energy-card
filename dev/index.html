@@ -27,6 +27,7 @@
       <label><span>Auto spiegeln</span><input type="checkbox" id="flip"></label>
       <label><span>Bild mit Rand</span><input type="checkbox" id="padded" checked></label>
       <label><span>Kabel steckt</span><input type="checkbox" id="plug" checked></label>
+      <label>Auto <select id="carpic"><option value="tesla">Tesla (Lumina)</option><option value="superb">Superb von oben</option></select></label>
       <label>GoodWe-Bilder <select id="goodwe"><option value="">aus</option><option value="1">1 Modul</option><option value="2">2 Module</option><option value="3">3 Module</option><option value="4">4 Module</option></select></label>
     </div>
     <div class="ctl" id="ctl"></div>
@@ -149,7 +150,12 @@
       cfg.style = document.getElementById("style").value;
       if (!document.getElementById("carimg").checked) delete cfg.car.image_entity;
       cfg.car.flip = document.getElementById("flip").checked;
-      const pic = document.getElementById("padded").checked ? "./mock/car-padded.png" : "./mock/car.png";
+      let pic = document.getElementById("padded").checked ? "./mock/car-padded.png" : "./mock/car.png";
+      if (document.getElementById("carpic").value === "superb") {
+        // own picture from above (dev/mock/superb.png, not in the repo), socket on the right in the grille
+        pic = "./mock/superb.png";
+        cfg.car.charge_port = [0.205, 0.71];
+      }
       set("image.skoda_superb_combi_hauptansicht_des_fahrzeugs", pic, { entity_picture: pic });
       // Own pictures from dev/mock/ (not in the repo, see README "Eigene Bilder").
       const modules = document.getElementById("goodwe").value;
@@ -195,7 +201,7 @@
       svgEl.appendChild(g);
     }
 
-    for (const id of ["anim", "style", "grid", "carimg", "flip", "padded", "goodwe"]) document.getElementById(id).addEventListener("change", apply);
+    for (const id of ["anim", "style", "grid", "carimg", "flip", "padded", "goodwe", "carpic"]) document.getElementById(id).addEventListener("change", apply);
     document.getElementById("plug").addEventListener("change", (e) => {
       set("binary_sensor.skoda_superb_combi_ladekabel", e.target.checked ? "on" : "off", { friendly_name: "Ladekabel" });
       card.hass = makeHass();
