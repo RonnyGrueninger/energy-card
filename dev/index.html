@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Energy Card Test</title>
+  <style>
+    body { margin: 0; background: #111418; color: #cfd8dc; font: 14px system-ui, sans-serif; }
+    .wrap { max-width: 1280px; margin: 16px auto; padding: 0 16px; }
+    .ctl { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 18px; margin: 14px 0; }
+    label { display: flex; flex-direction: column; gap: 3px; }
+    label span { display: flex; justify-content: space-between; }
+    input[type=range] { width: 100%; }
+    .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+    #log { font: 12px ui-monospace, monospace; color: #8ab4c0; min-height: 1.4em; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="host"><energy-card id="card"></energy-card></div>
+    <div class="row">
+      <label>Animation <select id="anim"><option>comet</option><option>dashes</option><option>dots</option><option>none</option></select></label>
+      <label>Stil <select id="style"><option>real</option><option>tech</option></select></label>
+      <label>Breite <select id="width"><option value="100%">voll</option><option value="760px">760 px</option><option value="390px">390 px (Handy)</option></select></label>
+      <label><span>Raster</span><input type="checkbox" id="grid"></label>
+      <label><span>Auto-Bild</span><input type="checkbox" id="carimg" checked></label>
+    </div>
+    <div class="ctl" id="ctl"></div>
+    <div id="log"></div>
+  </div>
+
+  <script type="module">
+    import "../dist/energy-card.js";
+
+    const BASE_CONFIG = {
+      type: "custom:energy-card",
+      pv: {
+        entity: "sensor.goodwe_pv_power",
+        daily: "sensor.goodwe_today_s_pv_generation",
+        popup: [
+          { entity: "sensor.goodwe_mppt1_power", name: "Ost" },
+          { entity: "sensor.goodwe_mppt2_power", name: "West" },
+        ],
+      },
+      battery: {
+        soc: "sensor.goodwe_battery_state_of_charge",
+        power: "sensor.goodwe_battery_power",
+        invert: true,
+        popup: [
+          { entity: "sensor.goodwe_battery_temperature", name: "Temperatur" },
+          { entity: "sensor.goodwe_battery_state_of_health", name: "Gesundheit" },
+        ],
+      },
+      home: {
+        entity: "sensor.goodwe_backup_ohne_eigenverbrauch",
+        popup: [
+          { entity: "sensor.shellyplug_buro_ronny", name: "Büro Ronny" },
+          { entity: "switch.buro_licht", name: "Licht Büro" },
+        ],
+      },
+      grid: {
+        entity: "sensor.goodwe_active_power",
+        invert: true,
+        daily_import: "sensor.goodwe_today_energy_import",
+        daily_export: "sensor.goodwe_today_energy_export",
+      },
+      inverter: { popup: [{ entity: "sensor.goodwe_inverter_temperature_air", name: "Temperatur Luft" }] },
+      car: {
+        name: "Skoda Superb",
+        power: "sensor.ladeleistung_auto",
+        soc: "sensor.skoda_superb_combi_batteriestand",
+        status: "sensor.skoda_superb_combi_ladestatus",
+        image_entity: "image.skoda_superb_combi_hauptansicht_des_fahrzeugs",
+        popup: [{ entity: "sensor.skoda_superb_combi_elektrische_reichweite", name: "E-Reichweite" }],
+      },
+      display: { animation: "comet", speed: 0.5, decimals: 2 },
+    };
+
+    const states = {};
+    const set = (id, state, attrs = {}) => {
+      states[id] = { entity_id: id, state: String(state), attributes: attrs, last_changed: new Date().toISOString() };
+    };
+    const W = { unit_of_measurement: "W" };
+    const KWH = { unit_of_measurement: "kWh" };
+    set("sensor.goodwe_today_s_pv_generation", 12.84, KWH);
+    set("sensor.goodwe_mppt1_power", 2100, W);
+    set("sensor.goodwe_mppt2_power", 1350, W);
+    set("sensor.goodwe_battery_temperature", 21.5, { unit_of_measurement: "°C" });
+    set("sensor.goodwe_battery_state_of_health", 99, { unit_of_measurement: "%" });
+    set("sensor.shellyplug_buro_ronny", 86.4, W);
+    set("switch.buro_licht", "on", { friendly_name: "Licht Büro" });
+    set("sensor.goodwe_today_energy_import", 3.21, KWH);
+    set("sensor.goodwe_today_energy_export", 8.1, KWH);
+    set("sensor.goodwe_inverter_temperature_air", 38.2, { unit_of_measurement: "°C" });
+    set("sensor.skoda_superb_combi_ladestatus", "Lädt", {});
+    set("sensor.skoda_superb_combi_elektrische_reichweite", 74, { unit_of_measurement: "km" });
+    set("image.skoda_superb_combi_hauptansicht_des_fahrzeugs", "2026-11-01T10:00:00", { entity_picture: "./mock/car.png" });
+
+    // Sliders use the raw GoodWe sign conventions, so "invert" gets tested too.
+    const SLIDERS = [
+      ["sensor.goodwe_pv_power", "PV (W)", 0, 9000, 3450, W],
+      ["sensor.goodwe_battery_power", "Batterie roh (W, + = entladen)", -5000, 5000, -1200, W],
+      ["sensor.goodwe_battery_state_of_charge", "Batterie SOC (%)", 0, 100, 78, { unit_of_measurement: "%" }],
+      ["sensor.goodwe_backup_ohne_eigenverbrauch", "Haus (W)", 0, 9000, 1650, W],
+      ["sensor.goodwe_active_power", "Netz roh (W, + = Einspeisung)", -8000, 8000, 600, W],
+      ["sensor.ladeleistung_auto", "Auto Ladeleistung (W)", 0, 11000, 3700, W],
+      ["sensor.skoda_superb_combi_batteriestand", "Auto SOC (%)", 0, 100, 65, { unit_of_measurement: "%" }],
+    ];
+
+    const card = document.getElementById("card");
+    const log = (msg) => (document.getElementById("log").textContent = msg);
+    const makeHass = () => ({
+      states: { ...states },
+      language: "de",
+      locale: { language: "de" },
+      callService: (domain, service, data) => {
+        log(`callService ${domain}.${service} ${JSON.stringify(data)}`);
+        const id = data.entity_id;
+        if (states[id]) set(id, states[id].state === "on" ? "off" : "on", states[id].attributes);
+        card.hass = makeHass();
+      },
+      formatEntityState: (s) => (s.attributes.unit_of_measurement ? `${s.state} ${s.attributes.unit_of_measurement}` : s.state),
+    });
+    card.addEventListener("hass-more-info", (e) => log(`more-info: ${e.detail.entityId}`));
+
+    const ctl = document.getElementById("ctl");
+    for (const [id, label, min, max, value, attrs] of SLIDERS) {
+      set(id, value, attrs);
+      const el = document.createElement("label");
+      el.innerHTML = `<span>${label}<b>${value}</b></span><input type="range" min="${min}" max="${max}" value="${value}" step="10" data-id="${id}">`;
+      const input = el.querySelector("input");
+      input.addEventListener("input", () => {
+        el.querySelector("b").textContent = input.value;
+        set(id, input.value, attrs);
+        card.hass = makeHass();
+      });
+      ctl.appendChild(el);
+    }
+
+    function apply() {
+      const cfg = structuredClone(BASE_CONFIG);
+      cfg.display.animation = document.getElementById("anim").value;
+      cfg.style = document.getElementById("style").value;
+      if (!document.getElementById("carimg").checked) delete cfg.car.image_entity;
+      card.setConfig(cfg);
+      card.hass = makeHass();
+      drawGrid();
+    }
+
+    function drawGrid() {
+      const svgEl = card.shadowRoot.querySelector("svg");
+      svgEl.querySelector(".dbg")?.remove();
+      if (!document.getElementById("grid").checked) return;
+      const ns = "http://www.w3.org/2000/svg";
+      const g = document.createElementNS(ns, "g");
+      g.setAttribute("class", "dbg");
+      g.setAttribute("pointer-events", "none");
+      for (let x = 0; x <= 3072; x += 128) {
+        const l = document.createElementNS(ns, "line");
+        Object.entries({ x1: x, y1: 0, x2: x, y2: 2048, stroke: x % 512 ? "rgba(255,255,0,.18)" : "rgba(255,255,0,.55)", "stroke-width": x % 512 ? 1.5 : 3 }).forEach(([k, v]) => l.setAttribute(k, v));
+        g.appendChild(l);
+        if (x % 256 === 0) {
+          const t = document.createElementNS(ns, "text");
+          Object.entries({ x: x + 6, y: 40, fill: "#ff0", "font-size": 34 }).forEach(([k, v]) => t.setAttribute(k, v));
+          t.textContent = x;
+          g.appendChild(t);
+        }
+      }
+      for (let y = 0; y <= 2048; y += 128) {
+        const l = document.createElementNS(ns, "line");
+        Object.entries({ x1: 0, y1: y, x2: 3072, y2: y, stroke: y % 512 ? "rgba(255,255,0,.18)" : "rgba(255,255,0,.55)", "stroke-width": y % 512 ? 1.5 : 3 }).forEach(([k, v]) => l.setAttribute(k, v));
+        g.appendChild(l);
+        if (y % 256 === 0) {
+          const t = document.createElementNS(ns, "text");
+          Object.entries({ x: 8, y: y - 8, fill: "#ff0", "font-size": 34 }).forEach(([k, v]) => t.setAttribute(k, v));
+          t.textContent = y;
+          g.appendChild(t);
+        }
+      }
+      svgEl.appendChild(g);
+    }
+
+    for (const id of ["anim", "style", "grid", "carimg"]) document.getElementById(id).addEventListener("change", apply);
+    document.getElementById("width").addEventListener("change", (e) => (document.getElementById("host").style.width = e.target.value));
+    apply();
+    window.card = card;
+  </script>
+</body>
+</html>

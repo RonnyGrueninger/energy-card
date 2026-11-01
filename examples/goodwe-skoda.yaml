@@ -1,0 +1,69 @@
+# Beispiel: GoodWe-Wechselrichter mit Batterie und ein Skoda (MySkoda-Integration).
+# Entity-Namen an die eigenen anpassen.
+type: custom:energy-card
+style: real
+
+pv:
+  entity: sensor.goodwe_pv_power
+  daily: sensor.goodwe_today_s_pv_generation
+  popup:
+    - entity: sensor.goodwe_mppt1_power
+      name: Ost
+    - entity: sensor.goodwe_mppt2_power
+      name: West
+
+battery:
+  soc: sensor.goodwe_battery_state_of_charge
+  power: sensor.goodwe_battery_power
+  invert: true # GoodWe meldet Entladen als positiv
+  popup:
+    - entity: sensor.goodwe_battery_temperature
+      name: Temperatur
+    - entity: sensor.goodwe_battery_state_of_health
+      name: Gesundheit
+    - entity: sensor.goodwe_battery_voltage
+      name: Spannung
+    - entity: sensor.goodwe_battery_mode
+      name: Modus
+
+home:
+  entity: sensor.house_consumption
+  popup:
+    - entity: sensor.office_plug_power
+      name: Büro
+
+grid:
+  entity: sensor.goodwe_active_power
+  invert: true # GoodWe meldet Einspeisung als positiv
+  daily_import: sensor.goodwe_today_energy_import
+  daily_export: sensor.goodwe_today_energy_export
+
+inverter:
+  popup:
+    - entity: sensor.goodwe_inverter_temperature_air
+      name: Temperatur Luft
+    - entity: sensor.goodwe_inverter_temperature_module
+      name: Temperatur Modul
+    - entity: sensor.goodwe_inverter_temperature_radiator
+      name: Temperatur Kühlkörper
+
+car:
+  name: Skoda Superb
+  power: sensor.wallbox_power
+  soc: sensor.skoda_superb_combi_batteriestand
+  status: sensor.skoda_superb_combi_ladestatus
+  image_entity: image.skoda_superb_combi_hauptansicht_des_fahrzeugs
+  popup:
+    - entity: sensor.skoda_superb_combi_elektrische_reichweite
+      name: E-Reichweite
+    - entity: sensor.skoda_superb_combi_verbleibende_ladezeit
+      name: Restladezeit
+    - entity: sensor.skoda_superb_combi_fullstand_tank
+      name: Tank
+    - entity: binary_sensor.skoda_superb_combi_ladekabel
+      name: Ladekabel
+
+display:
+  animation: comet
+  speed: 0.5
+  decimals: 2
