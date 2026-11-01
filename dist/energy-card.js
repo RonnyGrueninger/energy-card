@@ -7,7 +7,7 @@
  * see NOTICE-ASSETS.md.
  */
 
-const VERSION = "0.4.0";
+const VERSION = "0.4.1";
 const TAG = "energy-card";
 const ASSETS = new URL("./", import.meta.url).href;
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -22,7 +22,7 @@ const LAYOUT = {
     battery: [[1200, 1405], [1342, 1470], [1617, 1370]],
     home: [[1843, 1197], [2173, 1070], [1824, 950]],
     grid: [[2534, 1702], [1785, 1414]],
-    car: [[1853, 1374], [2052, 1449], [2370, 1312]], // ends on the floor in front of the car, the charging cable starts here
+    car: [[1853, 1374], [2142, 1484], [2480, 1330]], // ends on the floor in front of the car, the charging cable starts here
   },
   boxes: {
     pv: [461, 645],
@@ -51,7 +51,7 @@ const INVERTER_IMAGE_FLOWS = {
   battery: [[1200, 1405], [1380, 1477], [1650, 1380]],
   home: [[1880, 1100], [2072, 1027], [1824, 950]],
   grid: [[2534, 1702], [1760, 1395]],
-  car: [[1918, 1340], [2128, 1417], [2370, 1312]],
+  car: [[1918, 1340], [2217, 1449], [2480, 1330]],
 };
 
 // Where the SOC segments sit on the battery image (fractions of its width/height).
@@ -138,9 +138,10 @@ const DEFAULTS = {
   battery: {},
   home: {},
   grid: {},
-  // charge_port: where the cable plugs in, as share of width and height of the car picture before
-  // flipping. The default fits the MySkoda picture of a Superb iV (socket in the front grille).
-  car: { charge_port: [0.93, 0.52] },
+  // charge_port: where the cable plugs in, as share of width and height of the car as shown in the
+  // card (after flip). The default fits the flipped MySkoda picture of a Superb iV (socket on the
+  // right in the front grille).
+  car: { charge_port: [0.22, 0.52] },
   inverter: {},
 };
 
@@ -171,11 +172,12 @@ const CSS = `
   .hot:hover { fill: rgba(0, 249, 249, .05); stroke: rgba(0, 249, 249, .35); }
   .cable { opacity: 0; transition: opacity .6s ease; pointer-events: none; }
   .cable.on { opacity: 1; }
-  .cable .rope { fill: none; stroke: #0a121c; stroke-width: 13; stroke-linecap: round; }
+  .cable .rope { fill: none; stroke: #0a121c; stroke-width: 11; stroke-linecap: round; opacity: .8; }
   .cable .core { fill: none; stroke: currentColor; stroke-width: 4; stroke-linecap: round; opacity: .35; transition: opacity .6s; }
-  .cable .plug rect { fill: #0a121c; stroke: currentColor; stroke-width: 3; }
+  .cable .plug circle { fill: currentColor; opacity: .45; transition: opacity .6s; }
   .cable.live .core { opacity: .95; filter: drop-shadow(0 0 7px currentColor); }
-  .cable.live .plug rect { filter: drop-shadow(0 0 6px currentColor); }
+  .cable.live .plug circle { opacity: 1; filter: drop-shadow(0 0 8px currentColor); animation: ec-pulse 2.4s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .cable.live .plug circle { animation: none; } }
   .boxes { position: absolute; inset: 0; pointer-events: none; }
   .nolbl .lbl { display: none; }
   .box {
@@ -235,6 +237,7 @@ const CSS = `
   .tgl.on { background: rgba(0, 249, 249, .3); }
   .tgl.on::after { left: 1.3em; background: #00f9f9; box-shadow: 0 0 .6em #00f9f9; }
   @keyframes ec-fade { from { opacity: 0; } }
+  @keyframes ec-pulse { 50% { opacity: .55; } }
   @keyframes ec-pop { from { opacity: 0; transform: scale(.96); } }
 `;
 
@@ -510,7 +513,7 @@ class EnergyCard extends HTMLElement {
       if (cable) {
         const over = svg("g", { class: "cable" }, top);
         const plug = svg("g", { class: "plug" }, over);
-        svg("rect", { x: -13, y: -9, width: 26, height: 18, rx: 6 }, plug);
+        svg("circle", { r: 7 }, plug); // glowing socket where the cable goes in
         Object.assign(this._cable, { over, plug });
       }
     }
@@ -712,13 +715,10 @@ class EnergyCard extends HTMLElement {
 
   // Where the cable plugs into the car, in scene coordinates.
   _carPort() {
-    const car = this._car;
     const port = this._config.car.charge_port;
     const [u, v] = Array.isArray(port) && port.length >= 2 ? port.map(Number) : DEFAULTS.car.charge_port;
-    const b = car.content || car.box;
-    let x = b.x + u * b.width;
-    if (car.flip) x = 2 * car.box.x + car.box.width - x;
-    return [x, b.y + v * b.height];
+    const [x, y, w, h] = this._sceneRect(this._car);
+    return [x + u * w, y + v * h];
   }
 
   // The cable starts where the car flow ends on the floor, keeps its direction for a moment

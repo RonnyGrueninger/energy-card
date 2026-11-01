@@ -133,17 +133,17 @@ Mit `trim: false` lässt sich das abschalten.
 car:
   power: sensor.wallbox_power
   plug: binary_sensor.skoda_superb_combi_ladekabel   # optional: Kabel steckt
-  charge_port: [0.93, 0.52]                           # Lage der Ladebuchse im Bild
+  charge_port: [0.22, 0.52]                           # Lage der Ladebuchse im Bild
 ```
 
 Beim Laden hängt ein leuchtendes Kabel von der Ladebuchse auf den Boden, und der
 Energiefluss läuft durch das Kabel bis ins Auto. Mit `plug` steckt das Kabel auch,
 wenn das Auto angeschlossen ist, aber gerade nicht lädt. Dann leuchtet es nur schwach.
 
-`charge_port` gibt an, wo die Buchse im Auto-Bild sitzt: Anteil der Breite und der Höhe
-des sichtbaren Autos, gemessen im Originalbild (vor `flip`). Der Standard passt zum
-MySkoda-Bild des Superb iV, dessen Buchse im Kühlergrill sitzt. `cable: false` schaltet
-das Kabel ab.
+`charge_port` gibt an, wo die Buchse sitzt, so wie das Auto in der Karte steht (also nach
+`flip`): Anteil der Breite von links und der Höhe von oben, gemessen am sichtbaren Auto.
+`[0.5, 0.5]` wäre die Mitte des Autos. Der Standard passt zum gespiegelten MySkoda-Bild des
+Superb iV, dessen Buchse rechts im Kühlergrill sitzt. `cable: false` schaltet das Kabel ab.
 
 ### Batterie und Wechselrichter (z. B. GoodWe Lynx D und GoodWe ET)
 
@@ -184,7 +184,7 @@ layout:
   boxes:
     car: [2811, 768]
   flows:
-    car: [[1853, 1374], [2052, 1449], [2370, 1312]]          # das Ladekabel beginnt am letzten Punkt
+    car: [[1853, 1374], [2142, 1484], [2480, 1330]]          # das Ladekabel beginnt am letzten Punkt
 ```
 
 Die Flüsse sind Linienzüge aus beliebig vielen Punkten. Damit sie auf dem Boden liegen,
