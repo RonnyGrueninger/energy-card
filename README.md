@@ -125,18 +125,23 @@ Durchsichtige Ränder im Bild schneidet die Karte automatisch ab. Das Auto füll
 dann genau die Fläche `layout.car`, mit den Rädern auf der Unterkante.
 Mit `trim: false` lässt sich das abschalten.
 
-### Batterie und Wechselrichter (z. B. GoodWe Lynx und GoodWe ET)
+### Batterie und Wechselrichter (z. B. GoodWe Lynx D und GoodWe ET)
 
-1. Ein Foto suchen, am besten schräg von vorne links.
-2. Den Hintergrund entfernen, z. B. in Windows 11 Paint mit „Hintergrund entfernen“, und als PNG speichern.
+1. Ein Bild suchen, am besten schräg von vorne. Die Batterie steht links in der Szene,
+   von dort sieht man ihre rechte Seite. Beim Wechselrichter passt die linke Seite.
+2. Falls nötig den Hintergrund entfernen, z. B. in Windows 11 Paint mit „Hintergrund entfernen“, und als PNG speichern.
 3. Die PNG-Datei nach `/config/www/energy-card/` legen. In HA heißt der Pfad dann `/local/energy-card/...`.
 
 ```yaml
 battery:
-  image: /local/energy-card/goodwe-lynx.png
+  image: /local/energy-card/goodwe-lynx-d-2.png
 inverter:
-  image: /local/energy-card/goodwe-et.png
+  image: /local/energy-card/goodwe-gw20k-et.png
 ```
+
+Mit einem eigenen Wechselrichter-Bild nimmt die Karte automatisch einen Hintergrund
+ohne den Glas-Kasten, und die Leitungen enden am neuen Bild.
+Position und Größe: `layout.inverter` und `layout.battery_image`.
 
 Herstellerfotos sind urheberrechtlich geschützt. Leg sie deshalb nur in dein
 eigenes HA und nicht in ein öffentliches Repository.
@@ -152,8 +157,9 @@ Jeder Wert aus `LAYOUT` im Code lässt sich überschreiben:
 ```yaml
 layout:
   car: { x: 2360, y: 880, width: 660, height: 410 }
-  inverter: { x: 1515, y: 830, width: 520, height: 590 }
+  inverter: { x: 1615, y: 1000, width: 300, height: 400 }   # nur mit inverter.image
   battery: { x: 937, y: 1075, width: 307 }
+  battery_image: { x: 950, y: 992, width: 280, height: 430 } # nur mit battery.image
   boxes:
     car: [2811, 768]
   flows:

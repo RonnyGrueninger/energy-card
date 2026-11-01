@@ -8,6 +8,8 @@ Sie wurden nur verkleinert bzw. in JPEG umgewandelt.
 |---|---|
 | `dist/bg-real.jpg` | `dist/lumina_background_nocar_real.png` |
 | `dist/bg-tech.jpg` | `dist/lumina_background_nocar.png` |
+| `dist/bg-real-noinv.jpg` | `dist/lumina_background_nocar_real.png`, Wechselrichter-Kasten entfernt |
+| `dist/bg-tech-noinv.jpg` | `dist/lumina_background_nocar.png`, Wechselrichter-Kasten entfernt |
 | `dist/battery-real.png` | `dist/battery_real.png` |
 | `dist/battery-tech.png` | `dist/battery.png` |
 

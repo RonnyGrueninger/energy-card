@@ -16,6 +16,7 @@ battery:
   soc: sensor.goodwe_battery_state_of_charge
   power: sensor.goodwe_battery_power
   invert: true # GoodWe meldet Entladen als positiv
+  # image: /local/energy-card/goodwe-lynx-d-2.png # eigenes Bild, siehe README
   popup:
     - entity: sensor.goodwe_battery_temperature
       name: Temperatur
@@ -39,6 +40,7 @@ grid:
   daily_export: sensor.goodwe_today_energy_export
 
 inverter:
+  # image: /local/energy-card/goodwe-gw20k-et.png # eigenes Bild, siehe README
   popup:
     - entity: sensor.goodwe_inverter_temperature_air
       name: Temperatur Luft

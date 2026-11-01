@@ -7,7 +7,7 @@
  * see NOTICE-ASSETS.md.
  */
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 const TAG = "energy-card";
 const ASSETS = new URL("./", import.meta.url).href;
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -37,9 +37,20 @@ const LAYOUT = {
     wallbox: [2289, 561, 253, 445],
   },
   battery: { x: 937, y: 1075, width: 307 },
+  battery_image: { x: 950, y: 992, width: 280, height: 430 }, // only used with battery.image
   car: { x: 2360, y: 880, width: 660, height: 410 }, // visible part of the picture, wheels on the bottom edge
-  inverter: { x: 1515, y: 830, width: 520, height: 590 }, // only used with inverter.image
+  inverter: { x: 1615, y: 1000, width: 300, height: 400 }, // only used with inverter.image
   grid_node: [2534, 1702],
+};
+
+// With an own inverter picture the card uses a background without the glass box,
+// and the flows end at the edges of the picture instead.
+const INVERTER_IMAGE_FLOWS = {
+  pv: [[985, 1040], [1640, 1255]],
+  battery: [[1226, 1413], [1640, 1360]],
+  home: [[1632, 1150], [1490, 1030]],
+  grid: [[2534, 1702], [1902, 1284]],
+  car: [[1900, 1170], [2388, 1006], [2435, 1175]],
 };
 
 // Where the SOC segments sit on the battery image (fractions of its width/height).
@@ -290,7 +301,14 @@ class EnergyCard extends HTMLElement {
   setConfig(config) {
     if (!isObj(config)) throw new Error("Invalid configuration");
     const cfg = merge(clone(DEFAULTS), config);
-    cfg.layout = merge(clone(LAYOUT), config.layout || {});
+    const ownInverter = isObj(config.inverter) && !!config.inverter.image;
+    const baseLayout = clone(LAYOUT);
+    if (ownInverter) Object.assign(baseLayout.flows, clone(INVERTER_IMAGE_FLOWS));
+    cfg.layout = merge(baseLayout, config.layout || {});
+    if (ownInverter && !config.layout?.hotspots?.inverter) {
+      const I = cfg.layout.inverter;
+      cfg.layout.hotspots.inverter = [I.x, I.y, I.width, I.height];
+    }
     const has = (sec, keys) => keys.some((k) => isObj(cfg[sec]) && cfg[sec][k]);
     cfg._on = {
       pv: has("pv", ["entity"]),
@@ -364,7 +382,7 @@ class EnergyCard extends HTMLElement {
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     this._anim = reduceMotion || c.display.animation === "none" ? null : ANIMATIONS[c.display.animation] || ANIMATIONS.comet;
     this._uid = "ec" + Math.random().toString(36).slice(2, 8);
-    const bg = c.background || `${ASSETS}bg-${style}.jpg`;
+    const bg = c.background || `${ASSETS}bg-${style}${c.inverter.image ? "-noinv" : ""}.jpg`;
 
     this.shadowRoot.innerHTML = `
       <style>${CSS}</style>
@@ -453,19 +471,21 @@ class EnergyCard extends HTMLElement {
 
   _buildBattery(layer, style) {
     const c = this._config;
-    const B = c.layout.battery;
-    const x = B.x;
-    const y = B.y;
-    const w = B.width;
+    let x;
+    let y;
+    let w;
     let h;
     let f = c.battery.soc_face || null;
     if (c.battery.image) {
-      // Own picture: fitted into the battery body area, standing on the floor, with a reflection.
-      h = B.height || w * BATTERY_RATIO.real * BATTERY_FOOT;
+      // Own picture: standing on the floor in its own box, with a reflection.
+      const B = c.layout.battery_image;
+      ({ x, y, width: w, height: h } = B);
       this._batteryRect = [x, y, w, h];
-      const own = this._buildOverlay(layer, "battery", { x, y, width: w, height: h }, c.battery);
+      const own = this._buildOverlay(layer, "battery", B, c.battery);
       this._setHref(own, c.battery.image);
     } else {
+      const B = c.layout.battery;
+      ({ x, y, width: w } = B);
       h = w * BATTERY_RATIO[style];
       this._batteryRect = [x, y, w, h * BATTERY_FOOT];
       svg("image", { href: `${ASSETS}battery-${style}.png`, x, y, width: w, height: h, preserveAspectRatio: "none" }, layer);
