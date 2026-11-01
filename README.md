@@ -202,7 +202,7 @@ layout:
   car: { x: 2290, y: 850, width: 760, height: 470 }
   inverter: { x: 1650, y: 1100, width: 230, height: 300 }   # nur mit inverter.image
   battery: { x: 937, y: 1075, width: 307 }
-  battery_image: { x: 960, y: 862, width: 280, height: 560 } # nur mit battery.image
+  battery_image: { x: 960, y: 1040, width: 280, height: 560 } # nur mit battery.image
   boxes:
     car: [2811, 768]
   flows:

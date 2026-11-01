@@ -7,7 +7,7 @@
  * see NOTICE-ASSETS.md.
  */
 
-const VERSION = "0.4.3";
+const VERSION = "0.4.4";
 const TAG = "energy-card";
 const ASSETS = new URL("./", import.meta.url).href;
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -38,7 +38,7 @@ const LAYOUT = {
     wallbox: [2289, 561, 253, 445],
   },
   battery: { x: 937, y: 1075, width: 307 },
-  battery_image: { x: 960, y: 862, width: 280, height: 560 }, // only used with battery.image; tall stacks grow upwards
+  battery_image: { x: 960, y: 1040, width: 280, height: 560 }, // only used with battery.image; tall stacks grow upwards
   car: { x: 2290, y: 850, width: 760, height: 470 }, // visible part of the picture, wheels on the bottom edge
   inverter: { x: 1650, y: 1100, width: 230, height: 300 }, // only used with inverter.image
   grid_node: [2534, 1702],
@@ -48,7 +48,7 @@ const LAYOUT = {
 // and the flows end at the edges of the picture instead.
 const INVERTER_IMAGE_FLOWS = {
   pv: [[960, 1045], [1700, 1325]],
-  battery: [[1200, 1415], [1335, 1477], [1705, 1342]],
+  battery: [[1190, 1529], [1705, 1342]], // comes out from behind the battery and runs straight into the inverter
   home: [[1840, 1160], [2178, 1049], [1824, 950]],
   grid: [[2534, 1702], [1795, 1385]],
   car: [[1871, 1365], [2146, 1468], [2420, 1345]], // starts right next to the inverter, it is drawn above it
