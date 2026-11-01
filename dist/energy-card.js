@@ -7,21 +7,22 @@
  * see NOTICE-ASSETS.md.
  */
 
-const VERSION = "0.3.0";
+const VERSION = "0.4.0";
 const TAG = "energy-card";
 const ASSETS = new URL("./", import.meta.url).href;
 const SVG_NS = "http://www.w3.org/2000/svg";
 const BASE_SPEED = 100; // px per second at playbackRate 1
 
 // All positions are pixels on the 3072 x 2048 background image.
+// The flows run along the two floor directions of the scene and turn at right angles.
 const LAYOUT = {
   view_box: [0, 0, 3072, 2048],
   flows: {
-    pv: [[985, 1040], [1575, 1240]],
-    battery: [[1226, 1413], [1559, 1344]],
-    home: [[1690, 1186], [1651, 1026]],
-    grid: [[2534, 1702], [1981, 1336]],
-    car: [[1905, 1190], [2388, 1006], [2435, 1175]],
+    pv: [[960, 1045], [1549, 1270]],
+    battery: [[1200, 1405], [1342, 1470], [1617, 1370]],
+    home: [[1843, 1197], [2173, 1070], [1824, 950]],
+    grid: [[2534, 1702], [1785, 1414]],
+    car: [[1853, 1374], [2052, 1449], [2370, 1312]], // ends on the floor in front of the car, the charging cable starts here
   },
   boxes: {
     pv: [461, 645],
@@ -37,7 +38,7 @@ const LAYOUT = {
     wallbox: [2289, 561, 253, 445],
   },
   battery: { x: 937, y: 1075, width: 307 },
-  battery_image: { x: 950, y: 992, width: 280, height: 430 }, // only used with battery.image
+  battery_image: { x: 950, y: 822, width: 280, height: 600 }, // only used with battery.image; tall stacks grow upwards
   car: { x: 2360, y: 880, width: 660, height: 410 }, // visible part of the picture, wheels on the bottom edge
   inverter: { x: 1615, y: 1000, width: 300, height: 400 }, // only used with inverter.image
   grid_node: [2534, 1702],
@@ -46,11 +47,11 @@ const LAYOUT = {
 // With an own inverter picture the card uses a background without the glass box,
 // and the flows end at the edges of the picture instead.
 const INVERTER_IMAGE_FLOWS = {
-  pv: [[985, 1040], [1640, 1255]],
-  battery: [[1226, 1413], [1640, 1360]],
-  home: [[1632, 1150], [1490, 1030]],
-  grid: [[2534, 1702], [1902, 1284]],
-  car: [[1900, 1170], [2388, 1006], [2435, 1175]],
+  pv: [[960, 1045], [1660, 1312]],
+  battery: [[1200, 1405], [1380, 1477], [1650, 1380]],
+  home: [[1880, 1100], [2072, 1027], [1824, 950]],
+  grid: [[2534, 1702], [1760, 1395]],
+  car: [[1918, 1340], [2128, 1417], [2370, 1312]],
 };
 
 // Where the SOC segments sit on the battery image (fractions of its width/height).
@@ -117,6 +118,7 @@ const DEFAULTS = {
     threshold: 10, // W, below this a flow counts as idle
     max_power: 6000, // W, flows reach full speed here
     show_inactive: true,
+    labels: false, // captions like "SOLAR" above the values
     font: null,
   },
   colors: {
@@ -136,12 +138,15 @@ const DEFAULTS = {
   battery: {},
   home: {},
   grid: {},
-  car: {},
+  // charge_port: where the cable plugs in, as share of width and height of the car picture before
+  // flipping. The default fits the MySkoda picture of a Superb iV (socket in the front grille).
+  car: { charge_port: [0.93, 0.52] },
   inverter: {},
 };
 
 const SECTIONS = ["pv", "battery", "home", "grid", "car", "inverter"];
-const ENTITY_KEYS = ["entity", "soc", "power", "daily", "daily_import", "daily_export", "status", "image_entity"];
+const ENTITY_KEYS = ["entity", "soc", "power", "daily", "daily_import", "daily_export", "status", "image_entity", "plug"];
+const PLUGGED_STATES = new Set(["on", "true", "connected", "plugged", "plugged_in"]);
 const TOGGLE_DOMAINS = new Set(["switch", "light", "input_boolean", "fan", "automation", "siren", "humidifier"]);
 
 // Simple power pylon, drawn around (0, 0).
@@ -164,9 +169,18 @@ const CSS = `
   .gridnode .tower { fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; transition: stroke .6s; }
   .hot { fill: transparent; stroke: transparent; stroke-width: 4; cursor: pointer; transition: fill .25s, stroke .25s; }
   .hot:hover { fill: rgba(0, 249, 249, .05); stroke: rgba(0, 249, 249, .35); }
+  .cable { opacity: 0; transition: opacity .6s ease; pointer-events: none; }
+  .cable.on { opacity: 1; }
+  .cable .rope { fill: none; stroke: #0a121c; stroke-width: 13; stroke-linecap: round; }
+  .cable .core { fill: none; stroke: currentColor; stroke-width: 4; stroke-linecap: round; opacity: .35; transition: opacity .6s; }
+  .cable .plug rect { fill: #0a121c; stroke: currentColor; stroke-width: 3; }
+  .cable.live .core { opacity: .95; filter: drop-shadow(0 0 7px currentColor); }
+  .cable.live .plug rect { filter: drop-shadow(0 0 6px currentColor); }
   .boxes { position: absolute; inset: 0; pointer-events: none; }
+  .nolbl .lbl { display: none; }
   .box {
-    position: absolute; transform: translate(-50%, -50%); pointer-events: auto; cursor: pointer;
+    position: absolute; pointer-events: auto; cursor: pointer;
+    transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px)));
     white-space: nowrap; text-align: center; line-height: 1.2; font-size: max(9px, 1cqw);
     padding: .45em .9em .5em; border-radius: .7em;
     background: rgba(2, 12, 28, .58); border: 1px solid rgba(0, 249, 249, .28);
@@ -372,6 +386,10 @@ class EnergyCard extends HTMLElement {
   _teardown() {
     for (const f of Object.values(this._flows)) f.anims.forEach((a) => a.cancel());
     this._flows = {};
+    this._ro?.disconnect();
+    this._ro = null;
+    if (this._clampRaf) cancelAnimationFrame(this._clampRaf);
+    this._clampRaf = 0;
     this._built = false;
   }
 
@@ -393,6 +411,7 @@ class EnergyCard extends HTMLElement {
             <image href="${esc(bg)}" x="0" y="0" width="3072" height="2048" preserveAspectRatio="none"></image>
             <g class="flows"></g>
             <g class="objects"></g>
+            <g class="top"></g>
             <g class="hotspots"></g>
           </svg>
           <div class="boxes"></div>
@@ -409,10 +428,12 @@ class EnergyCard extends HTMLElement {
         <feGaussianBlur in="t" stdDeviation="5" result="b"></feGaussianBlur>
         <feMerge><feMergeNode in="b"></feMergeNode><feMergeNode in="t"></feMergeNode></feMerge>
       </filter>`;
-    this._buildFlows(svgEl.querySelector(".flows"));
+    this._buildFlows(svgEl.querySelector(".flows"), svgEl.querySelector(".top"));
     const objects = svgEl.querySelector(".objects");
     this._socSegs = [];
+    this._socFace = null;
     this._batteryRect = null;
+    this._hot = {};
     this._car = null;
     this._gridRing = null;
     if (c.inverter.image) {
@@ -424,6 +445,13 @@ class EnergyCard extends HTMLElement {
     if (c._on.grid) this._buildGridNode(objects);
     this._buildHotspots(svgEl.querySelector(".hotspots"));
     this._buildBoxes(root.querySelector(".boxes"));
+    // Keep the value boxes inside the card when the card or a box changes size.
+    this._scene = root.querySelector(".scene");
+    if (window.ResizeObserver) {
+      this._ro = new ResizeObserver(() => this._scheduleClamp());
+      this._ro.observe(this._scene);
+      for (const b of Object.values(this._boxes)) this._ro.observe(b.el);
+    }
     this._backdrop = root.querySelector(".backdrop");
     this._popup = root.querySelector(".popup");
     this._popupSection = null;
@@ -433,12 +461,25 @@ class EnergyCard extends HTMLElement {
     this._update(true);
   }
 
-  _buildFlows(layer) {
+  _buildFlows(layer, top) {
     const c = this._config;
     const anim = this._anim;
+    this._cable = null;
     for (const [id, pts] of Object.entries(c.layout.flows)) {
       if (!c._on[id] || !Array.isArray(pts) || pts.length < 2) continue;
-      const g = svg("g", { class: "flow off" }, layer);
+      // The car flow goes on into the charging cable, which hangs in front of the car.
+      // So this flow is drawn above the car, between the cable and the plug.
+      const cable = id === "car" && c.car.cable !== false;
+      if (cable) {
+        const under = svg("g", { class: "cable" }, top);
+        this._cable = {
+          under,
+          rope: svg("path", { class: "rope" }, under),
+          core: svg("path", { class: "core" }, under),
+          color: null,
+        };
+      }
+      const g = svg("g", { class: "flow off" }, cable ? top : layer);
       const dF = pathD(pts);
       const dR = pathD([...pts].reverse());
       const track = svg("path", { class: "track", d: dF, "stroke-width": 4 }, g);
@@ -465,50 +506,75 @@ class EnergyCard extends HTMLElement {
           anims.push(a);
         }
       }
-      this._flows[id] = { g, track, layers, anims, dF, dR, reverse: false, color: null };
+      this._flows[id] = { g, track, layers, anims, dF, dR, pts: clone(pts), reverse: false, color: null };
+      if (cable) {
+        const over = svg("g", { class: "cable" }, top);
+        const plug = svg("g", { class: "plug" }, over);
+        svg("rect", { x: -13, y: -9, width: 26, height: 18, rx: 6 }, plug);
+        Object.assign(this._cable, { over, plug });
+      }
     }
   }
 
   _buildBattery(layer, style) {
     const c = this._config;
-    let x;
-    let y;
-    let w;
-    let h;
+    let rect; // the picture area the SOC face fractions refer to
+    let own = null;
     let f = c.battery.soc_face || null;
     if (c.battery.image) {
       // Own picture: standing on the floor in its own box, with a reflection.
+      // Once the picture is measured, hotspot and SOC bar move onto its visible part.
       const B = c.layout.battery_image;
-      ({ x, y, width: w, height: h } = B);
-      this._batteryRect = [x, y, w, h];
-      const own = this._buildOverlay(layer, "battery", B, c.battery);
-      this._setHref(own, c.battery.image);
+      rect = [B.x, B.y, B.width, B.height];
+      this._batteryRect = rect;
+      own = this._buildOverlay(layer, "battery", B, c.battery);
     } else {
       const B = c.layout.battery;
-      ({ x, y, width: w } = B);
-      h = w * BATTERY_RATIO[style];
-      this._batteryRect = [x, y, w, h * BATTERY_FOOT];
-      svg("image", { href: `${ASSETS}battery-${style}.png`, x, y, width: w, height: h, preserveAspectRatio: "none" }, layer);
+      const h = B.width * BATTERY_RATIO[style];
+      rect = [B.x, B.y, B.width, h];
+      this._batteryRect = [B.x, B.y, B.width, h * BATTERY_FOOT];
+      svg("image", { href: `${ASSETS}battery-${style}.png`, x: B.x, y: B.y, width: B.width, height: h, preserveAspectRatio: "none" }, layer);
       f = f || SOC_FACE[style];
     }
-    if (!f || !c.battery.soc || c.battery.soc_bar === false) return;
+    if (f && c.battery.soc && c.battery.soc_bar !== false) {
+      const g = svg("g", { class: "soc" }, layer);
+      for (let i = 0; i < 6; i++) this._socSegs.push(svg("polygon", { class: "seg" }, g));
+      this._socFace = f;
+      this._placeSoc(rect);
+    }
+    if (own) {
+      const uid = this._uid;
+      own.onFit = () => {
+        if (uid !== this._uid) return;
+        const r = this._sceneRect(own);
+        this._batteryRect = r;
+        const el = this._hot?.battery;
+        if (el) ["x", "y", "width", "height"].forEach((k, i) => el.setAttribute(k, r[i].toFixed(1)));
+        this._placeSoc(r);
+      };
+      this._setHref(own, c.battery.image);
+    }
+  }
 
-    const n = 6;
+  // Lays the SOC segments onto the battery face. rect = [x, y, width, height] of the picture.
+  _placeSoc([x, y, w, h]) {
+    const f = this._socFace;
+    const segs = this._socSegs;
+    if (!f || !segs.length) return;
+    const n = segs.length;
     const gap = 0.22; // share of one segment left empty
     const lerp = (a, b, t) => a + (b - a) * t;
     const P = (u, v) => `${(x + u * w).toFixed(1)},${(y + v * h).toFixed(1)}`;
-    const g = svg("g", { class: "soc" }, layer);
-    for (let i = 0; i < n; i++) {
+    segs.forEach((seg, i) => {
       const ta = (i + gap / 2) / n;
       const tb = (i + 1 - gap / 2) / n;
-      const pts = [
+      seg.setAttribute("points", [
         P(f.u0, lerp(f.b0, f.t0, ta)),
         P(f.u1, lerp(f.b1, f.t1, ta)),
         P(f.u1, lerp(f.b1, f.t1, tb)),
         P(f.u0, lerp(f.b0, f.t0, tb)),
-      ];
-      this._socSegs.push(svg("polygon", { class: "seg", points: pts.join(" ") }, g));
-    }
+      ].join(" "));
+    });
   }
 
   // A picture standing on the floor, with a fading reflection below it.
@@ -532,7 +598,12 @@ class EnergyCard extends HTMLElement {
     const attrs = { x, y, width: w, height: h, preserveAspectRatio: "xMidYMax meet" };
     const refl = svg("image", { ...attrs, transform: `translate(0 ${2 * (y + h)}) scale(1 -1)` }, mirror);
     const img = svg("image", attrs, g);
-    return { g, img, refl, href: null, box: { x, y, width: w, height: h }, trim: opts.trim !== false, fitToken: 0 };
+    return {
+      g, img, refl, href: null, box: { x, y, width: w, height: h }, flip: !!opts.flip,
+      trim: opts.trim !== false, fitToken: 0, mask: this._defs.querySelector(`#${id}-rm`),
+      content: null, // visible part of the picture once measured, before flipping
+      onFit: null,
+    };
   }
 
   _setHref(overlay, url) {
@@ -541,22 +612,62 @@ class EnergyCard extends HTMLElement {
       if (url) el.setAttribute("href", url);
       else el.removeAttribute("href");
     }
-    if (url && overlay.trim) this._fitContent(overlay, url);
+    if (url) this._fitContent(overlay, url);
+  }
+
+  // Visible part of an overlay picture in scene coordinates: [x, y, width, height].
+  _sceneRect(o) {
+    const b = o.content || o.box;
+    const x = o.flip ? 2 * o.box.x + o.box.width - b.x - b.width : b.x;
+    return [x, b.y, b.width, b.height];
   }
 
   // Many pictures (e.g. MySkoda renders) have a wide transparent border.
   // Measure the visible part and scale it so exactly that part fills the box,
-  // standing on the box bottom. Falls back to the plain fit for cross-origin images.
+  // standing on the box bottom. Without trim, or for cross-origin pictures, the plain fit stays.
   async _fitContent(overlay, url) {
     const token = ++overlay.fitToken;
+    const pic = new Image();
     try {
-      const pic = new Image();
       pic.src = url;
       await pic.decode();
-      if (token !== overlay.fitToken) return;
-      const nw = pic.naturalWidth;
-      const nh = pic.naturalHeight;
-      if (!nw || !nh) return;
+    } catch (e) {
+      return;
+    }
+    if (token !== overlay.fitToken) return;
+    const nw = pic.naturalWidth;
+    const nh = pic.naturalHeight;
+    if (!nw || !nh) return;
+    const { x, y, width: W, height: H } = overlay.box;
+    let k = Math.min(W / nw, H / nh);
+    let content = { x: x + (W - nw * k) / 2, y: y + H - nh * k, width: nw * k, height: nh * k };
+    const vis = overlay.trim ? this._visibleBox(pic, nw, nh) : null;
+    if (vis) {
+      const [bx, by, bw, bh] = vis;
+      k = Math.min(W / bw, H / bh);
+      content = { x: x + (W - bw * k) / 2, y: y + H - bh * k, width: bw * k, height: bh * k };
+      const attrs = {
+        x: (content.x - bx * k).toFixed(1),
+        y: (content.y - by * k).toFixed(1),
+        width: (nw * k).toFixed(1),
+        height: (nh * k).toFixed(1),
+        preserveAspectRatio: "none",
+      };
+      for (const el of [overlay.img, overlay.refl]) {
+        for (const [name, value] of Object.entries(attrs)) el.setAttribute(name, value);
+      }
+    }
+    overlay.content = content;
+    // let the reflection fade out over the height of the picture, not of the box
+    const rh = Math.max(20, content.height * 0.6).toFixed(1);
+    overlay.mask?.setAttribute("height", rh);
+    overlay.mask?.firstElementChild?.setAttribute("height", rh);
+    overlay.onFit?.();
+  }
+
+  // Bounding box [x, y, width, height] of the non-transparent pixels, or null if unknown.
+  _visibleBox(pic, nw, nh) {
+    try {
       const s = Math.min(1, 480 / Math.max(nw, nh));
       const cw = Math.max(1, Math.round(nw * s));
       const ch = Math.max(1, Math.round(nh * s));
@@ -580,25 +691,10 @@ class EnergyCard extends HTMLElement {
           }
         }
       }
-      if (x1 < 0) return;
-      const bx = x0 / s;
-      const by = y0 / s;
-      const bw = (x1 - x0 + 1) / s;
-      const bh = (y1 - y0 + 1) / s;
-      const { x, y, width: W, height: H } = overlay.box;
-      const k = Math.min(W / bw, H / bh);
-      const attrs = {
-        x: (x + (W - bw * k) / 2 - bx * k).toFixed(1),
-        y: (y + H - bh * k - by * k).toFixed(1),
-        width: (nw * k).toFixed(1),
-        height: (nh * k).toFixed(1),
-        preserveAspectRatio: "none",
-      };
-      for (const el of [overlay.img, overlay.refl]) {
-        for (const [name, value] of Object.entries(attrs)) el.setAttribute(name, value);
-      }
+      if (x1 < 0) return null;
+      return [x0 / s, y0 / s, (x1 - x0 + 1) / s, (y1 - y0 + 1) / s];
     } catch (e) {
-      // keep the plain fit
+      return null;
     }
   }
 
@@ -606,7 +702,55 @@ class EnergyCard extends HTMLElement {
     const c = this._config;
     this._car = this._buildOverlay(layer, "car", c.layout.car, c.car);
     this._carImgState = null;
+    const uid = this._uid;
+    this._car.onFit = () => {
+      if (uid === this._uid) this._layoutCable();
+    };
+    this._layoutCable();
     this._setHref(this._car, c.car.image || null);
+  }
+
+  // Where the cable plugs into the car, in scene coordinates.
+  _carPort() {
+    const car = this._car;
+    const port = this._config.car.charge_port;
+    const [u, v] = Array.isArray(port) && port.length >= 2 ? port.map(Number) : DEFAULTS.car.charge_port;
+    const b = car.content || car.box;
+    let x = b.x + u * b.width;
+    if (car.flip) x = 2 * car.box.x + car.box.width - x;
+    return [x, b.y + v * b.height];
+  }
+
+  // The cable starts where the car flow ends on the floor, keeps its direction for a moment
+  // and then rises into the socket. The flow's light runs on along the cable.
+  _layoutCable() {
+    const f = this._flows.car;
+    const cab = this._cable;
+    if (!f || !cab || !this._car) return;
+    const P = this._carPort();
+    const pts = f.pts;
+    const G = pts[pts.length - 1];
+    const H = pts[pts.length - 2];
+    const len = Math.hypot(G[0] - H[0], G[1] - H[1]) || 1;
+    const c1 = [G[0] + ((G[0] - H[0]) / len) * 34, G[1] + ((G[1] - H[1]) / len) * 34];
+    const c2 = [P[0], P[1] + Math.max(30, (G[1] - P[1]) * 0.6)];
+    const curve = [];
+    for (let i = 1; i <= 16; i++) {
+      const t = i / 16;
+      const u = 1 - t;
+      const at = (k) => +(u * u * u * G[k] + 3 * u * u * t * c1[k] + 3 * u * t * t * c2[k] + t * t * t * P[k]).toFixed(1);
+      curve.push([at(0), at(1)]);
+    }
+    const full = [...pts, ...curve];
+    f.dF = pathD(full);
+    f.dR = pathD([...full].reverse());
+    const d = f.reverse ? f.dR : f.dF;
+    f.layers.forEach((l) => l.el.setAttribute("d", d));
+    const n = (p) => `${p[0].toFixed(1)} ${p[1].toFixed(1)}`;
+    const cd = `M${n(G)} C${n(c1)} ${n(c2)} ${n(P)}`;
+    cab.rope.setAttribute("d", cd);
+    cab.core.setAttribute("d", cd);
+    cab.plug.setAttribute("transform", `translate(${n(P)})`);
   }
 
   _buildGridNode(layer) {
@@ -620,14 +764,15 @@ class EnergyCard extends HTMLElement {
     const c = this._config;
     const H = c.layout.hotspots;
     const rect = (sec, r) => {
-      if (!Array.isArray(r) || r.length < 4) return;
+      if (!Array.isArray(r) || r.length < 4) return null;
       const el = svg("rect", { class: "hot", x: r[0], y: r[1], width: r[2], height: r[3], rx: 28 }, layer);
       el.addEventListener("click", () => this._openPopup(sec));
+      return el;
     };
     if (c._on.pv) rect("pv", H.pv);
     rect("inverter", H.inverter);
     if (c._on.home) rect("home", H.home);
-    if (this._batteryRect) rect("battery", this._batteryRect);
+    if (this._batteryRect) this._hot.battery = rect("battery", this._batteryRect);
     if (c._on.car) {
       const C = c.layout.car;
       rect("car", [C.x, C.y, C.width, C.height]);
@@ -644,6 +789,7 @@ class EnergyCard extends HTMLElement {
     const c = this._config;
     const [vx, vy, vw, vh] = c.layout.view_box;
     this._boxes = {};
+    container.classList.toggle("nolbl", !c.display.labels);
     for (const id of ["pv", "home", "battery", "grid", "car"]) {
       const pos = c.layout.boxes[id];
       if (!c._on[id] || !Array.isArray(pos)) continue;
@@ -695,6 +841,7 @@ class EnergyCard extends HTMLElement {
     const v = this._values();
     this._v = v;
     this._updateFlows(v);
+    this._updateCable(v);
     this._updateBoxes(v);
     this._updateSoc(v);
     this._updateGridNode(v);
@@ -719,6 +866,8 @@ class EnergyCard extends HTMLElement {
     else v.home = null;
     v.soc = stateNum(h, c.battery.soc);
     v.carSoc = stateNum(h, c.car.soc);
+    const plug = c.car.plug && h.states[c.car.plug];
+    v.carPlug = plug ? PLUGGED_STATES.has(String(plug.state).toLowerCase()) : null;
     v.pvToday = readEnergy(h, c.pv.daily);
     v.importToday = readEnergy(h, c.grid.daily_import);
     v.exportToday = readEnergy(h, c.grid.daily_export);
@@ -742,8 +891,8 @@ class EnergyCard extends HTMLElement {
     const active = power != null && Math.abs(power) >= d.threshold;
     if (f.reverse !== reverse) {
       f.reverse = reverse;
+      // the track is a plain line and keeps its path (for the car it ends where the cable starts)
       const path = reverse ? f.dR : f.dF;
-      f.track.setAttribute("d", path);
       f.layers.forEach((l) => l.el.setAttribute("d", path));
     }
     if (f.color !== color) {
@@ -773,6 +922,22 @@ class EnergyCard extends HTMLElement {
     const d = this._config.display;
     const share = Math.min(1, Math.abs(power) / Math.max(1, d.max_power));
     return 400 * d.speed * (0.45 + 1.55 * share);
+  }
+
+  // The cable shows while the car charges, or while it is plugged in (car.plug).
+  // It glows while charging.
+  _updateCable(v) {
+    const cab = this._cable;
+    if (!cab) return;
+    const c = this._config;
+    const charging = v.car != null && Math.abs(v.car) >= c.display.threshold;
+    const show = charging || v.carPlug === true;
+    for (const g of [cab.under, cab.over]) {
+      g.classList.toggle("on", show);
+      g.classList.toggle("live", charging);
+      if (cab.color !== c.colors.car) g.style.color = c.colors.car;
+    }
+    cab.color = c.colors.car;
   }
 
   _updateBoxes(v) {
@@ -815,6 +980,48 @@ class EnergyCard extends HTMLElement {
       B.car.sub1.textContent = charging
         ? `${t.charging} ${this._fmtPower(Math.abs(v.car))}`
         : c.car.status ? this._fmtState(c.car.status) : "";
+    }
+  }
+
+  _scheduleClamp() {
+    if (this._clampRaf) return;
+    this._clampRaf = requestAnimationFrame(() => {
+      this._clampRaf = 0;
+      this._clampBoxes();
+    });
+  }
+
+  // Pushes value boxes back inside the card. On phones the minimum font size makes
+  // the boxes relatively big, so the ones near the edge would stick out.
+  _clampBoxes() {
+    const scene = this._scene;
+    if (!scene || !this._boxes) return;
+    const s = scene.getBoundingClientRect();
+    if (!s.width || !s.height) return;
+    const k = scene.offsetWidth / s.width || 1; // screen px -> CSS px, in case the card is scaled
+    const pad = Math.max(4, s.width * 0.01);
+    for (const b of Object.values(this._boxes)) {
+      const r = b.el.getBoundingClientRect();
+      const ox = (b.dx || 0) / k;
+      const oy = (b.dy || 0) / k;
+      const left = r.left - ox;
+      const right = r.right - ox;
+      const top = r.top - oy;
+      const bottom = r.bottom - oy;
+      let dx = 0;
+      let dy = 0;
+      if (left < s.left + pad) dx = s.left + pad - left;
+      else if (right > s.right - pad) dx = s.right - pad - right;
+      if (top < s.top + pad) dy = s.top + pad - top;
+      else if (bottom > s.bottom - pad) dy = s.bottom - pad - bottom;
+      dx *= k;
+      dy *= k;
+      if (Math.abs(dx - (b.dx || 0)) > 0.5 || Math.abs(dy - (b.dy || 0)) > 0.5) {
+        b.dx = dx;
+        b.dy = dy;
+        b.el.style.setProperty("--dx", `${dx.toFixed(1)}px`);
+        b.el.style.setProperty("--dy", `${dy.toFixed(1)}px`);
+      }
     }
   }
 

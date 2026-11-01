@@ -54,6 +54,7 @@ car:
   power: sensor.wallbox_power
   soc: sensor.skoda_superb_combi_batteriestand
   status: sensor.skoda_superb_combi_ladestatus
+  plug: binary_sensor.skoda_superb_combi_ladekabel # Ladekabel steckt
   image_entity: image.skoda_superb_combi_hauptansicht_des_fahrzeugs
   flip: true # MySkoda-Bild schaut nach rechts, so schaut das Auto zum Haus
   popup:

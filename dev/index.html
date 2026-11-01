@@ -26,6 +26,8 @@
       <label><span>Auto-Bild</span><input type="checkbox" id="carimg" checked></label>
       <label><span>Auto spiegeln</span><input type="checkbox" id="flip"></label>
       <label><span>Bild mit Rand</span><input type="checkbox" id="padded" checked></label>
+      <label><span>Kabel steckt</span><input type="checkbox" id="plug" checked></label>
+      <label>GoodWe-Bilder <select id="goodwe"><option value="">aus</option><option value="1">1 Modul</option><option value="2">2 Module</option><option value="3">3 Module</option><option value="4">4 Module</option></select></label>
     </div>
     <div class="ctl" id="ctl"></div>
     <div id="log"></div>
@@ -73,6 +75,7 @@
         soc: "sensor.skoda_superb_combi_batteriestand",
         status: "sensor.skoda_superb_combi_ladestatus",
         image_entity: "image.skoda_superb_combi_hauptansicht_des_fahrzeugs",
+        plug: "binary_sensor.skoda_superb_combi_ladekabel",
         popup: [{ entity: "sensor.skoda_superb_combi_elektrische_reichweite", name: "E-Reichweite" }],
       },
       display: { animation: "comet", speed: 0.5, decimals: 2 },
@@ -97,6 +100,7 @@
     set("sensor.skoda_superb_combi_ladestatus", "Lädt", {});
     set("sensor.skoda_superb_combi_elektrische_reichweite", 74, { unit_of_measurement: "km" });
     set("image.skoda_superb_combi_hauptansicht_des_fahrzeugs", "2026-11-01T10:00:00", { entity_picture: "./mock/car.png" });
+    set("binary_sensor.skoda_superb_combi_ladekabel", "on", { friendly_name: "Ladekabel" });
 
     // Sliders use the raw GoodWe sign conventions, so "invert" gets tested too.
     const SLIDERS = [
@@ -147,6 +151,12 @@
       cfg.car.flip = document.getElementById("flip").checked;
       const pic = document.getElementById("padded").checked ? "./mock/car-padded.png" : "./mock/car.png";
       set("image.skoda_superb_combi_hauptansicht_des_fahrzeugs", pic, { entity_picture: pic });
+      // Own pictures from dev/mock/ (not in the repo, see README "Eigene Bilder").
+      const modules = document.getElementById("goodwe").value;
+      if (modules) {
+        cfg.battery.image = `./mock/goodwe-lynx-d-${modules}.png`;
+        cfg.inverter.image = "./mock/goodwe-gw20k-et.png";
+      }
       card.setConfig(cfg);
       card.hass = makeHass();
       drawGrid();
@@ -185,7 +195,11 @@
       svgEl.appendChild(g);
     }
 
-    for (const id of ["anim", "style", "grid", "carimg", "flip", "padded"]) document.getElementById(id).addEventListener("change", apply);
+    for (const id of ["anim", "style", "grid", "carimg", "flip", "padded", "goodwe"]) document.getElementById(id).addEventListener("change", apply);
+    document.getElementById("plug").addEventListener("change", (e) => {
+      set("binary_sensor.skoda_superb_combi_ladekabel", e.target.checked ? "on" : "off", { friendly_name: "Ladekabel" });
+      card.hass = makeHass();
+    });
     document.getElementById("width").addEventListener("change", (e) => (document.getElementById("host").style.width = e.target.value));
     apply();
     window.card = card;

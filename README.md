@@ -3,11 +3,12 @@
 Eine Home-Assistant-Karte mit animierten Energieflüssen über einer 3D-Szene:
 PV-Anlage, Batterie, Haus, Netz, Wechselrichter und Auto.
 
-- Animierte Flüsse (Komet, Striche oder Punkte), Tempo passt sich der Leistung an
-- Werte-Boxen mit Tagesertrag, Netzbezug und -einspeisung
+- Animierte Flüsse (Komet, Striche oder Punkte), die im rechten Winkel über den Boden laufen; Tempo passt sich der Leistung an
+- Werte-Boxen mit Tagesertrag, Netzbezug und -einspeisung; sie bleiben auch auf dem Handy in der Karte
 - Batterie-Ladestand als leuchtender 6-Segment-Balken
 - Popups mit beliebigen Sensoren; Schalter und Lichter lassen sich direkt schalten
 - Auto-Bild direkt aus einem HA-Bild-Entity (z. B. MySkoda), mit Spiegelung auf dem Boden
+- Ladekabel am Auto: steckt, sobald das Auto angeschlossen ist, und leuchtet beim Laden. Der Energiefluss läuft bis in die Ladebuchse.
 - Eigene Bilder für Batterie und Wechselrichter möglich
 - Keine Paywall, keine Server-Abfragen, keine Werbung. Die Karte lädt nur ihre eigenen Dateien.
 
@@ -64,7 +65,7 @@ Ohne `home.entity` berechnet die Karte den Hausverbrauch aus PV, Netz und Batter
 | `battery` | `soc`, `power`, `invert`, `name`, `popup`, `image`, `trim`, `soc_bar` (`false` = aus), `soc_face` |
 | `home` | `entity`, `name`, `popup` |
 | `grid` | `entity`, `invert`, `daily_import`, `daily_export`, `name`, `popup` |
-| `car` | `power`, `soc`, `status`, `name`, `image_entity`, `image`, `flip`, `trim`, `hologram`, `reflection`, `invert`, `popup` |
+| `car` | `power`, `soc`, `status`, `plug`, `name`, `image_entity`, `image`, `flip`, `trim`, `hologram`, `reflection`, `charge_port`, `cable`, `invert`, `popup` |
 | `inverter` | `image`, `flip`, `trim`, `reflection`, `entity`, `popup` |
 
 `popup` ist eine Liste von Entities, die beim Antippen eines Elements erscheinen:
@@ -92,6 +93,7 @@ Ein Klick auf eine Zeile öffnet den normalen HA-Detaildialog.
 | `display.threshold` | `10` | unter diesem Wert (W) gilt ein Fluss als ruhend |
 | `display.max_power` | `6000` | bei dieser Leistung (W) laufen die Flüsse am schnellsten |
 | `display.show_inactive` | `true` | ruhende Leitungen schwach anzeigen |
+| `display.labels` | `false` | Überschriften wie „SOLAR“ über den Werten anzeigen |
 | `display.font` | Systemschrift | z. B. `"Rajdhani, sans-serif"` |
 
 ### Farben
@@ -125,6 +127,24 @@ Durchsichtige Ränder im Bild schneidet die Karte automatisch ab. Das Auto füll
 dann genau die Fläche `layout.car`, mit den Rädern auf der Unterkante.
 Mit `trim: false` lässt sich das abschalten.
 
+### Ladekabel
+
+```yaml
+car:
+  power: sensor.wallbox_power
+  plug: binary_sensor.skoda_superb_combi_ladekabel   # optional: Kabel steckt
+  charge_port: [0.93, 0.52]                           # Lage der Ladebuchse im Bild
+```
+
+Beim Laden hängt ein leuchtendes Kabel von der Ladebuchse auf den Boden, und der
+Energiefluss läuft durch das Kabel bis ins Auto. Mit `plug` steckt das Kabel auch,
+wenn das Auto angeschlossen ist, aber gerade nicht lädt. Dann leuchtet es nur schwach.
+
+`charge_port` gibt an, wo die Buchse im Auto-Bild sitzt: Anteil der Breite und der Höhe
+des sichtbaren Autos, gemessen im Originalbild (vor `flip`). Der Standard passt zum
+MySkoda-Bild des Superb iV, dessen Buchse im Kühlergrill sitzt. `cable: false` schaltet
+das Kabel ab.
+
 ### Batterie und Wechselrichter (z. B. GoodWe Lynx D und GoodWe ET)
 
 1. Ein Bild suchen, am besten schräg von vorne. Die Batterie steht links in der Szene,
@@ -142,6 +162,7 @@ inverter:
 Mit einem eigenen Wechselrichter-Bild nimmt die Karte automatisch einen Hintergrund
 ohne den Glas-Kasten, und die Leitungen enden am neuen Bild.
 Position und Größe: `layout.inverter` und `layout.battery_image`.
+Hohe Batterie-Stapel (z. B. 4 Module) wachsen nach oben, ohne schmaler zu werden.
 
 Herstellerfotos sind urheberrechtlich geschützt. Leg sie deshalb nur in dein
 eigenes HA und nicht in ein öffentliches Repository.
@@ -159,12 +180,16 @@ layout:
   car: { x: 2360, y: 880, width: 660, height: 410 }
   inverter: { x: 1615, y: 1000, width: 300, height: 400 }   # nur mit inverter.image
   battery: { x: 937, y: 1075, width: 307 }
-  battery_image: { x: 950, y: 992, width: 280, height: 430 } # nur mit battery.image
+  battery_image: { x: 950, y: 822, width: 280, height: 600 } # nur mit battery.image
   boxes:
     car: [2811, 768]
   flows:
-    car: [[1905, 1190], [2388, 1006], [2435, 1175]]
+    car: [[1853, 1374], [2052, 1449], [2370, 1312]]          # das Ladekabel beginnt am letzten Punkt
 ```
+
+Die Flüsse sind Linienzüge aus beliebig vielen Punkten. Damit sie auf dem Boden liegen,
+läuft jedes Teilstück entweder parallel zur rechten oder zur linken vorderen Kante der
+Plattform. Wo die Richtung wechselt, entsteht so ein rechter Winkel.
 
 ## Entwicklung
 
