@@ -7,9 +7,11 @@
  * see NOTICE-ASSETS.md.
  */
 
-const VERSION = "0.5.0";
+const VERSION = "0.5.1";
 const TAG = "energy-card";
 const ASSETS = new URL("./", import.meta.url).href;
+// The version in the address makes browsers load changed pictures after an update.
+const asset = (name) => `${ASSETS}${name}?v=${VERSION}`;
 const SVG_NS = "http://www.w3.org/2000/svg";
 const BASE_SPEED = 100; // px per second at playbackRate 1
 
@@ -412,7 +414,7 @@ class EnergyCard extends HTMLElement {
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     this._anim = reduceMotion || c.display.animation === "none" ? null : ANIMATIONS[c.display.animation] || ANIMATIONS.comet;
     this._uid = "ec" + Math.random().toString(36).slice(2, 8);
-    const bg = c.background || `${ASSETS}bg-${style}${c.inverter.image ? "-noinv" : ""}.jpg`;
+    const bg = c.background || asset(`bg-${style}${c.inverter.image ? "-noinv" : ""}.jpg`);
 
     this.shadowRoot.innerHTML = `
       <style>${CSS}</style>
@@ -624,7 +626,7 @@ class EnergyCard extends HTMLElement {
       const h = B.width * BATTERY_RATIO[style];
       rect = [B.x, B.y, B.width, h];
       this._batteryRect = [B.x, B.y, B.width, h * BATTERY_FOOT];
-      svg("image", { href: `${ASSETS}battery-${style}.png`, x: B.x, y: B.y, width: B.width, height: h, preserveAspectRatio: "none" }, layer);
+      svg("image", { href: asset(`battery-${style}.png`), x: B.x, y: B.y, width: B.width, height: h, preserveAspectRatio: "none" }, layer);
       f = f || SOC_FACE[style];
     }
     if (f && c.battery.soc && c.battery.soc_bar !== false) {
