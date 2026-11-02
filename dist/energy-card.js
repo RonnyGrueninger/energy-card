@@ -7,7 +7,7 @@
  * see NOTICE-ASSETS.md.
  */
 
-const VERSION = "0.4.4";
+const VERSION = "0.5.0";
 const TAG = "energy-card";
 const ASSETS = new URL("./", import.meta.url).href;
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -23,6 +23,8 @@ const LAYOUT = {
     home: [[1843, 1197], [2173, 1070], [1824, 950]],
     grid: [[2534, 1702], [1785, 1414]],
     car: [[1853, 1374], [2126, 1477], [2420, 1345]], // ends on the floor in front of the car, the charging cable starts here
+    // with battery.ports: way from the top socket into the inverter (the sockets are added in front)
+    battery_ports: [[1486, 1417], [1617, 1370]],
   },
   boxes: {
     pv: [461, 645],
@@ -35,10 +37,9 @@ const LAYOUT = {
     pv: [61, 783, 945, 445],
     inverter: [1544, 1167, 438, 230],
     home: [1106, 402, 952, 657],
-    wallbox: [2289, 561, 253, 445],
   },
   battery: { x: 937, y: 1075, width: 307 },
-  battery_image: { x: 960, y: 1040, width: 280, height: 560 }, // only used with battery.image; tall stacks grow upwards
+  battery_image: { x: 960, y: 1191, width: 280, height: 560 }, // only used with battery.image; tall stacks grow upwards
   car: { x: 2290, y: 850, width: 760, height: 470 }, // visible part of the picture, wheels on the bottom edge
   inverter: { x: 1650, y: 1100, width: 230, height: 300 }, // only used with inverter.image
   grid_node: [2534, 1702],
@@ -49,6 +50,7 @@ const LAYOUT = {
 const INVERTER_IMAGE_FLOWS = {
   pv: [[960, 1045], [1700, 1325]],
   battery: [[1190, 1529], [1705, 1342]], // comes out from behind the battery and runs straight into the inverter
+  battery_ports: [[1501, 1422], [1700, 1350]],
   home: [[1840, 1160], [2178, 1049], [1824, 950]],
   grid: [[2534, 1702], [1795, 1385]],
   car: [[1871, 1365], [2146, 1468], [2420, 1345]], // starts right next to the inverter, it is drawn above it
@@ -177,7 +179,9 @@ const CSS = `
   .cable .plug circle { fill: currentColor; opacity: .45; transition: opacity .6s; }
   .cable.live .core { opacity: .95; filter: drop-shadow(0 0 7px currentColor); }
   .cable.live .plug circle { opacity: 1; filter: drop-shadow(0 0 8px currentColor); animation: ec-pulse 2.4s ease-in-out infinite; }
-  @media (prefers-reduced-motion: reduce) { .cable.live .plug circle { animation: none; } }
+  .ports circle { fill: currentColor; opacity: .25; transition: opacity .6s; pointer-events: none; }
+  .ports.live circle { opacity: 1; filter: drop-shadow(0 0 7px currentColor); animation: ec-pulse 2.4s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .cable.live .plug circle, .ports.live circle { animation: none; } }
   .boxes { position: absolute; inset: 0; pointer-events: none; }
   .nolbl .lbl { display: none; }
   .box {
@@ -337,6 +341,11 @@ class EnergyCard extends HTMLElement {
     if (!Object.values(cfg._on).some(Boolean)) {
       throw new Error("Bitte mindestens einen Bereich konfigurieren: pv, battery, home, grid oder car.");
     }
+    // Sockets on an own battery picture where the battery flow ends, e.g. one per module.
+    const ports = cfg.battery.ports;
+    cfg._ports = cfg.battery.image && Array.isArray(ports)
+      ? ports.filter((p) => Array.isArray(p) && p.length >= 2).map((p) => [Number(p[0]), Number(p[1])])
+      : [];
     // Without a house sensor the consumption is calculated from PV, grid and battery.
     cfg._homeCalc = !cfg._on.home && cfg._on.pv && cfg._on.grid;
     if (cfg._homeCalc) cfg._on.home = true;
@@ -469,7 +478,12 @@ class EnergyCard extends HTMLElement {
     const anim = this._anim;
     this._cable = null;
     for (const [id, pts] of Object.entries(c.layout.flows)) {
+      if (id === "battery_ports") continue; // the way from the battery sockets, see _layoutPorts
       if (!c._on[id] || !Array.isArray(pts) || pts.length < 2) continue;
+      if (id === "battery" && c._ports.length) {
+        this._flows.battery = this._buildPortFlow(top, c._ports.length);
+        continue;
+      }
       // The car flow goes on into the charging cable, which hangs in front of the car.
       // So this flow is drawn above the car, between the cable and the plug.
       const cable = id === "car" && c.car.cable !== false;
@@ -519,6 +533,80 @@ class EnergyCard extends HTMLElement {
     }
   }
 
+  // Dash animation keyframes; shift moves the pattern along the path.
+  _dashFrames(ly, shift) {
+    const p = this._anim.period;
+    return [{ strokeDashoffset: `${ly.len + shift}px` }, { strokeDashoffset: `${ly.len + shift - p}px` }];
+  }
+
+  // Battery flow that ends in several sockets of the battery picture (battery.ports), e.g. one per
+  // module. Every socket has its own light. They share the way into the inverter, so each one is
+  // fainter and together they look like one flow that splits up at the sockets.
+  _buildPortFlow(top, count) {
+    const anim = this._anim;
+    const g = svg("g", { class: "flow off" }, top);
+    const track = svg("path", { class: "track", "stroke-width": 4 }, g);
+    const layers = [];
+    const anims = [];
+    const paths = [];
+    for (let i = 0; i < count; i++) {
+      const own = [];
+      for (const ly of anim ? anim.layers : []) {
+        const el = svg("path", {
+          class: "layer",
+          "stroke-width": ly.width,
+          "stroke-dasharray": `${ly.len} ${anim.period - ly.len}`,
+        }, g);
+        el.style.opacity = 1 - Math.pow(1 - ly.opacity, 1 / count);
+        if (ly.core) el.style.stroke = "#ffffff";
+        const a = el.animate(this._dashFrames(ly, 0), { duration: (anim.period / BASE_SPEED) * 1000, iterations: Infinity });
+        a.pause();
+        a.currentTime = 0;
+        layers.push({ el, core: !!ly.core });
+        anims.push(a);
+        own.push({ el, a, ly });
+      }
+      paths.push(own);
+    }
+    const dots = svg("g", { class: "ports" }, top);
+    const dotEls = Array.from({ length: count }, () => svg("circle", { r: 6 }, dots));
+    return { g, track, layers, anims, dF: "", dR: "", reverse: false, color: null, multi: { paths, dots, dotEls, routes: [] } };
+  }
+
+  // Puts the sockets onto the battery picture. Each route runs from its socket up through the
+  // sockets above it and then along layout.flows.battery_ports into the inverter.
+  _layoutPorts() {
+    const f = this._flows.battery;
+    if (!f?.multi || !this._batteryRect) return;
+    const c = this._config;
+    const [x, y, w, h] = this._batteryRect;
+    const ports = c._ports.map(([u, v]) => [x + u * w, y + v * h]);
+    const trunk = c.layout.flows.battery_ports || c.layout.flows.battery;
+    f.multi.routes = ports.map((_, i) => [...ports.slice(0, i + 1).reverse(), ...trunk]);
+    f.multi.dotEls.forEach((el, i) => {
+      el.setAttribute("cx", ports[i][0].toFixed(1));
+      el.setAttribute("cy", ports[i][1].toFixed(1));
+    });
+    this._applyPortPaths(f);
+  }
+
+  _applyPortPaths(f) {
+    const routes = f.multi.routes;
+    if (!routes.length) return;
+    const length = (r) => r.reduce((s, p, i) => (i ? s + Math.hypot(p[0] - r[i - 1][0], p[1] - r[i - 1][1]) : s), 0);
+    f.track.setAttribute("d", pathD(routes[routes.length - 1]));
+    routes.forEach((r, i) => {
+      const d = pathD(f.reverse ? [...r].reverse() : r);
+      // Discharging, every light starts in its own socket: shift the patterns so they meet on the
+      // shared way. Charging, they all start at the inverter together.
+      const shift = f.reverse ? 0 : -length(r);
+      for (const { el, a, ly } of f.multi.paths[i]) {
+        el.setAttribute("d", d);
+        a.effect?.setKeyframes?.(this._dashFrames(ly, shift));
+      }
+    });
+  }
+
   _buildBattery(layer, style) {
     const c = this._config;
     let rect; // the picture area the SOC face fractions refer to
@@ -554,7 +642,9 @@ class EnergyCard extends HTMLElement {
         const el = this._hot?.battery;
         if (el) ["x", "y", "width", "height"].forEach((k, i) => el.setAttribute(k, r[i].toFixed(1)));
         this._placeSoc(r);
+        this._layoutPorts();
       };
+      this._layoutPorts();
       this._setHref(own, c.battery.image);
     }
   }
@@ -980,9 +1070,13 @@ class EnergyCard extends HTMLElement {
     const active = power != null && Math.abs(power) >= d.threshold;
     if (f.reverse !== reverse) {
       f.reverse = reverse;
-      // the track is a plain line and keeps its path (for the car it ends where the cable starts)
-      const path = reverse ? f.dR : f.dF;
-      f.layers.forEach((l) => l.el.setAttribute("d", path));
+      if (f.multi) {
+        this._applyPortPaths(f);
+      } else {
+        // the track is a plain line and keeps its path (for the car it ends where the cable starts)
+        const path = reverse ? f.dR : f.dF;
+        f.layers.forEach((l) => l.el.setAttribute("d", path));
+      }
     }
     if (f.color !== color) {
       f.color = color;
@@ -990,8 +1084,10 @@ class EnergyCard extends HTMLElement {
       f.layers.forEach((l) => {
         if (!l.core) l.el.style.stroke = color;
       });
+      if (f.multi) f.multi.dots.style.color = color;
     }
     f.g.classList.toggle("off", !active);
+    if (f.multi) f.multi.dots.classList.toggle("live", active);
     f.track.style.opacity = active ? (this._anim ? 0.22 : 0.85) : d.show_inactive ? 0.07 : 0;
     if (!f.anims.length) return;
     if (active && this.isConnected) {

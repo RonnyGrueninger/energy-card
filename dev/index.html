@@ -161,6 +161,7 @@
       const modules = document.getElementById("goodwe").value;
       if (modules === "ki") {
         cfg.battery.image = "./mock/batterie.png";
+        cfg.battery.ports = [[0.907, 0.183], [0.907, 0.432], [0.907, 0.682], [0.907, 0.909]];
         cfg.inverter.image = "./mock/wechselrichter.png";
       } else if (modules) {
         cfg.battery.image = `./mock/goodwe-lynx-d-${modules}.png`;

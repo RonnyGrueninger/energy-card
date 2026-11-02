@@ -2,7 +2,8 @@
 
 Die folgenden Bilder in `dist/` stammen aus dem Projekt
 [Lumina Energy Card](https://github.com/Giorgio866/lumina-energy-card).
-Sie wurden nur verkleinert bzw. in JPEG umgewandelt.
+Sie wurden verkleinert bzw. in JPEG umgewandelt. Aus allen Hintergründen wurde außerdem
+die Säule mit dem Display rechts hinten (samt Spiegelung) entfernt.
 
 | Datei hier | Originaldatei |
 |---|---|

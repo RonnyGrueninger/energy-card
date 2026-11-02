@@ -62,7 +62,7 @@ Ohne `home.entity` berechnet die Karte den Hausverbrauch aus PV, Netz und Batter
 | Bereich | Optionen |
 |---|---|
 | `pv` | `entity`, `daily` (Tagesertrag), `name`, `popup` |
-| `battery` | `soc`, `power`, `invert`, `name`, `popup`, `image`, `trim`, `soc_bar` (`false` = aus), `soc_face` |
+| `battery` | `soc`, `power`, `invert`, `name`, `popup`, `image`, `trim`, `ports`, `soc_bar` (`false` = aus), `soc_face` |
 | `home` | `entity`, `name`, `popup` |
 | `grid` | `entity`, `invert`, `daily_import`, `daily_export`, `name`, `popup` |
 | `car` | `power`, `soc`, `status`, `plug`, `name`, `image_entity`, `image`, `flip`, `trim`, `hologram`, `reflection`, `charge_port`, `cable`, `invert`, `popup` |
@@ -189,6 +189,20 @@ Hohe Batterie-Stapel (z. B. 4 Module) wachsen nach oben, ohne schmaler zu werden
 Herstellerfotos sind urheberrechtlich geschützt. Leg sie deshalb nur in dein
 eigenes HA und nicht in ein öffentliches Repository.
 
+#### Leitung in jedes Modul
+
+```yaml
+battery:
+  image: /local/energy-card/batterie.png
+  ports: [[0.907, 0.183], [0.907, 0.432], [0.907, 0.682], [0.907, 0.909]]
+```
+
+`ports` sind die Anschlüsse am Batteriebild, z. B. einer pro Modul: Anteil der Breite von links
+und der Höhe von oben, gemessen am sichtbaren Bild. Die Leitung kommt dann vom Wechselrichter in
+den obersten Anschluss und läuft an der Seite durch alle anderen. Jeder Anschluss leuchtet und hat
+sein eigenes Licht: beim Laden teilt sich der Fluss auf die Module auf, beim Entladen sammelt er
+sich. Der Weg vom obersten Anschluss zum Wechselrichter steht in `layout.flows.battery_ports`.
+
 Bei eigenen Batteriebildern ist der Segment-Balken aus. Über `battery.soc_face`
 lässt er sich auf das neue Bild setzen (Anteile von Bildbreite und -höhe, siehe Code).
 
@@ -202,7 +216,7 @@ layout:
   car: { x: 2290, y: 850, width: 760, height: 470 }
   inverter: { x: 1650, y: 1100, width: 230, height: 300 }   # nur mit inverter.image
   battery: { x: 937, y: 1075, width: 307 }
-  battery_image: { x: 960, y: 1040, width: 280, height: 560 } # nur mit battery.image
+  battery_image: { x: 960, y: 1191, width: 280, height: 560 } # nur mit battery.image
   boxes:
     car: [2811, 768]
   flows:
