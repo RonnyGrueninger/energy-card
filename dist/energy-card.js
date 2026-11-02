@@ -7,7 +7,7 @@
  * see NOTICE-ASSETS.md.
  */
 
-const VERSION = "0.5.1";
+const VERSION = "0.5.2";
 const TAG = "energy-card";
 const ASSETS = new URL("./", import.meta.url).href;
 // The version in the address makes browsers load changed pictures after an update.
@@ -183,7 +183,13 @@ const CSS = `
   .cable.live .plug circle { opacity: 1; filter: drop-shadow(0 0 8px currentColor); animation: ec-pulse 2.4s ease-in-out infinite; }
   .ports circle { fill: currentColor; opacity: .25; transition: opacity .6s; pointer-events: none; }
   .ports.live circle { opacity: 1; filter: drop-shadow(0 0 7px currentColor); animation: ec-pulse 2.4s ease-in-out infinite; }
-  @media (prefers-reduced-motion: reduce) { .cable.live .plug circle, .ports.live circle { animation: none; } }
+  .leds circle { fill: #46ff7a; opacity: 0; transition: opacity .5s; pointer-events: none; }
+  .leds circle.on { opacity: 1; filter: drop-shadow(0 0 5px #46ff7a); }
+  .leds circle.blink { filter: drop-shadow(0 0 5px #46ff7a); animation: ec-blink 1.4s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) {
+    .cable.live .plug circle, .ports.live circle { animation: none; }
+    .leds circle.blink { animation: none; opacity: .6; }
+  }
   .boxes { position: absolute; inset: 0; pointer-events: none; }
   .nolbl .lbl { display: none; }
   .box {
@@ -244,6 +250,7 @@ const CSS = `
   .tgl.on::after { left: 1.3em; background: #00f9f9; box-shadow: 0 0 .6em #00f9f9; }
   @keyframes ec-fade { from { opacity: 0; } }
   @keyframes ec-pulse { 50% { opacity: .55; } }
+  @keyframes ec-blink { 0%, 100% { opacity: .1; } 50% { opacity: 1; } }
   @keyframes ec-pop { from { opacity: 0; transform: scale(.96); } }
 `;
 
@@ -348,6 +355,11 @@ class EnergyCard extends HTMLElement {
     cfg._ports = cfg.battery.image && Array.isArray(ports)
       ? ports.filter((p) => Array.isArray(p) && p.length >= 2).map((p) => [Number(p[0]), Number(p[1])])
       : [];
+    // Charge LEDs on an own battery picture: one row per module, from the first to the last LED.
+    const leds = cfg.battery.leds;
+    cfg._leds = cfg.battery.image && Array.isArray(leds)
+      ? leds.filter((r) => Array.isArray(r) && r.length >= 4).map((r) => r.slice(0, 4).map(Number))
+      : [];
     // Without a house sensor the consumption is calculated from PV, grid and battery.
     cfg._homeCalc = !cfg._on.home && cfg._on.pv && cfg._on.grid;
     if (cfg._homeCalc) cfg._on.home = true;
@@ -446,6 +458,7 @@ class EnergyCard extends HTMLElement {
     const objects = svgEl.querySelector(".objects");
     this._socSegs = [];
     this._socFace = null;
+    this._leds = null;
     this._batteryRect = null;
     this._hot = {};
     this._car = null;
@@ -621,6 +634,11 @@ class EnergyCard extends HTMLElement {
       rect = [B.x, B.y, B.width, B.height];
       this._batteryRect = rect;
       own = this._buildOverlay(layer, "battery", B, c.battery);
+      if (c._leds.length) {
+        const n = Math.max(1, Math.round(Number(c.battery.led_count) || 5));
+        const g = svg("g", { class: "leds" }, layer);
+        this._leds = c._leds.map(() => Array.from({ length: n }, () => svg("circle", {}, g)));
+      }
     } else {
       const B = c.layout.battery;
       const h = B.width * BATTERY_RATIO[style];
@@ -645,10 +663,33 @@ class EnergyCard extends HTMLElement {
         if (el) ["x", "y", "width", "height"].forEach((k, i) => el.setAttribute(k, r[i].toFixed(1)));
         this._placeSoc(r);
         this._layoutPorts();
+        this._layoutLeds();
       };
       this._layoutPorts();
+      this._layoutLeds();
       this._setHref(own, c.battery.image);
     }
+  }
+
+  // Puts the charge LEDs (battery.leds) onto the battery picture, evenly along each row.
+  _layoutLeds() {
+    if (!this._leds || !this._batteryRect) return;
+    const [x, y, w, h] = this._batteryRect;
+    this._config._leds.forEach(([u0, v0, u1, v1], i) => {
+      const row = this._leds[i];
+      const n = row.length;
+      const ax = x + u0 * w;
+      const ay = y + v0 * h;
+      const bx = x + u1 * w;
+      const by = y + v1 * h;
+      const r = n > 1 ? (Math.hypot(bx - ax, by - ay) / (n - 1)) * 0.36 : 2;
+      row.forEach((el, k) => {
+        const t = n > 1 ? k / (n - 1) : 0;
+        el.setAttribute("cx", (ax + (bx - ax) * t).toFixed(1));
+        el.setAttribute("cy", (ay + (by - ay) * t).toFixed(1));
+        el.setAttribute("r", r.toFixed(2));
+      });
+    });
   }
 
   // Lays the SOC segments onto the battery face. rect = [x, y, width, height] of the picture.
@@ -1212,7 +1253,22 @@ class EnergyCard extends HTMLElement {
     }
   }
 
+  // The LEDs light up in steps like on the device (5 LEDs: 20 % each); while charging the next one blinks.
+  _updateLeds(v) {
+    if (!this._leds) return;
+    const n = this._leds[0].length;
+    const lit = v.soc == null ? 0 : Math.max(0, Math.min(n, Math.ceil((v.soc / 100) * n - 1e-6)));
+    const charging = v.bat != null && v.bat >= this._config.display.threshold;
+    for (const row of this._leds) {
+      row.forEach((el, k) => {
+        el.classList.toggle("on", k < lit);
+        el.classList.toggle("blink", charging && k === lit);
+      });
+    }
+  }
+
   _updateSoc(v) {
+    this._updateLeds(v);
     const segs = this._socSegs;
     if (!segs.length) return;
     const col = this._config.colors;

@@ -62,7 +62,7 @@ Ohne `home.entity` berechnet die Karte den Hausverbrauch aus PV, Netz und Batter
 | Bereich | Optionen |
 |---|---|
 | `pv` | `entity`, `daily` (Tagesertrag), `name`, `popup` |
-| `battery` | `soc`, `power`, `invert`, `name`, `popup`, `image`, `trim`, `ports`, `soc_bar` (`false` = aus), `soc_face` |
+| `battery` | `soc`, `power`, `invert`, `name`, `popup`, `image`, `trim`, `ports`, `leds`, `led_count`, `soc_bar` (`false` = aus), `soc_face` |
 | `home` | `entity`, `name`, `popup` |
 | `grid` | `entity`, `invert`, `daily_import`, `daily_export`, `name`, `popup` |
 | `car` | `power`, `soc`, `status`, `plug`, `name`, `image_entity`, `image`, `flip`, `trim`, `hologram`, `reflection`, `charge_port`, `cable`, `invert`, `popup` |
@@ -202,6 +202,19 @@ und der Höhe von oben, gemessen am sichtbaren Bild. Die Leitung kommt dann vom 
 den obersten Anschluss und läuft an der Seite durch alle anderen. Jeder Anschluss leuchtet und hat
 sein eigenes Licht: beim Laden teilt sich der Fluss auf die Module auf, beim Entladen sammelt er
 sich. Der Weg vom obersten Anschluss zum Wechselrichter steht in `layout.flows.battery_ports`.
+
+#### Ladestand-LEDs am Modul
+
+```yaml
+battery:
+  leds: [[0.389, 0.165, 0.488, 0.170], [0.389, 0.417, 0.488, 0.422], [0.389, 0.659, 0.487, 0.666], [0.389, 0.873, 0.487, 0.880]]
+  led_count: 5   # Standard
+```
+
+`leds` ist je Modul eine LED-Reihe auf dem Bild: Anfang und Ende als Anteil von Breite und Höhe
+(`[u0, v0, u1, v1]`). Die LEDs leuchten stufenweise nach Ladestand, bei 5 LEDs je 20 %. Beim Laden
+blinkt die nächste. Auf einer normal großen Karte sind die LEDs sehr klein und wirken eher als
+grüner Leuchtstreifen; einzeln erkennt man sie auf großen Bildschirmen.
 
 Bei eigenen Batteriebildern ist der Segment-Balken aus. Über `battery.soc_face`
 lässt er sich auf das neue Bild setzen (Anteile von Bildbreite und -höhe, siehe Code).
